@@ -1,10 +1,17 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'node:http';
+import os from 'node:os';
 import WebSocket, { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 
 const port = Number(process.env.CMS_SERVER_PORT || 4377);
+const host = process.env.CMS_SERVER_HOST || '0.0.0.0';
+const publicHost = process.env.CMS_PUBLIC_HOST || '';
+const configuredCommandTimeoutMs = Number(process.env.CMS_COMMAND_TIMEOUT_MS || 90_000);
+const commandTimeoutMs = Number.isFinite(configuredCommandTimeoutMs) && configuredCommandTimeoutMs > 0
+  ? configuredCommandTimeoutMs
+  : 90_000;
 const adminToken = process.env.CMS_ADMIN_TOKEN || 'change-this-admin-token';
 const enrollmentToken = process.env.CMS_ENROLLMENT_TOKEN || 'change-this-enrollment-token';
 
@@ -25,6 +32,8 @@ app.get('/health', (_req, res) => {
 app.get('/api/status', (_req, res) => {
   res.json({
     ok: true,
+    listen: { host, port },
+    urls: getServerUrls(),
     devices: serializeDevices(),
     controllers: controllers.size,
     audit: auditLog.slice(-20)
@@ -62,10 +71,13 @@ wss.on('connection', (socket) => {
         device.status = 'offline';
         device.socket = null;
         device.lastSeen = new Date().toISOString();
+        appendAudit('device.offline', { deviceId: device.id, name: device.name });
+        failPendingCommandsForDevice(device.id, 'Device went offline before the command completed.');
         broadcastDevices();
       }
     }
 
+    failPendingCommandsForController(socket, 'Controller disconnected before the command completed.');
     controllers.delete(socket);
     unsubscribeControllerFromAllScreens(socket);
   });
@@ -83,8 +95,16 @@ setInterval(() => {
   }
 }, 30_000);
 
-server.listen(port, () => {
-  console.log(`CMS coordinator listening on http://localhost:${port}`);
+server.on('error', (error) => {
+  console.error(`CMS coordinator failed to start: ${error.message}`);
+  process.exit(1);
+});
+
+server.listen(port, host, () => {
+  console.log(`CMS coordinator listening on ${host}:${port}`);
+  for (const url of getServerUrls()) {
+    console.log(`  ${url.http}  (${url.ws})`);
+  }
 });
 
 function routeMessage(socket, message) {
@@ -149,6 +169,7 @@ function handleAuth(socket, message) {
     send(socket, { type: 'hello:ok', role: 'agent', deviceId });
     appendAudit('device.online', { deviceId, name: device.name });
     broadcastDevices();
+    broadcastAudit();
     return;
   }
 
@@ -171,7 +192,19 @@ function handleControllerMessage(socket, message) {
     }
 
     const commandId = nanoid();
-    pendingCommands.set(commandId, { controller: socket, deviceId: device.id });
+    const timeout = setTimeout(() => {
+      const pending = pendingCommands.get(commandId);
+      if (!pending) {
+        return;
+      }
+
+      pendingCommands.delete(commandId);
+      send(pending.controller, { type: 'command:error', commandId, message: 'Command timed out before the agent returned a result.' });
+      appendAudit('command.failed', { commandId, deviceId: pending.deviceId, reason: 'timeout' });
+      broadcastAudit();
+    }, commandTimeoutMs);
+
+    pendingCommands.set(commandId, { controller: socket, deviceId: device.id, timeout });
     appendAudit('command.requested', {
       commandId,
       deviceId: device.id,
@@ -185,6 +218,7 @@ function handleControllerMessage(socket, message) {
       command: message.command,
       args: message.args || []
     });
+    broadcastAudit();
     return;
   }
 
@@ -236,6 +270,17 @@ function handleAgentMessage(_socket, message) {
   if (message.type === 'command:result') {
     const pending = pendingCommands.get(message.commandId);
     pendingCommands.delete(message.commandId);
+
+    if (!pending) {
+      appendAudit('command.late_result', {
+        commandId: message.commandId,
+        exitCode: message.exitCode
+      });
+      broadcastAudit();
+      return;
+    }
+
+    clearTimeout(pending.timeout);
     appendAudit('command.completed', {
       commandId: message.commandId,
       deviceId: pending?.deviceId,
@@ -356,6 +401,68 @@ function appendAudit(event, data) {
   if (auditLog.length > 1_000) {
     auditLog.shift();
   }
+}
+
+function failPendingCommandsForDevice(deviceId, message) {
+  for (const [commandId, pending] of pendingCommands.entries()) {
+    if (pending.deviceId !== deviceId) {
+      continue;
+    }
+
+    pendingCommands.delete(commandId);
+    clearTimeout(pending.timeout);
+    send(pending.controller, { type: 'command:error', message, commandId });
+    appendAudit('command.failed', { commandId, deviceId, reason: message });
+  }
+
+  broadcastAudit();
+}
+
+function failPendingCommandsForController(controller, message) {
+  for (const [commandId, pending] of pendingCommands.entries()) {
+    if (pending.controller !== controller) {
+      continue;
+    }
+
+    pendingCommands.delete(commandId);
+    clearTimeout(pending.timeout);
+    appendAudit('command.failed', { commandId, deviceId: pending.deviceId, reason: message });
+  }
+
+  broadcastAudit();
+}
+
+function getServerUrls() {
+  const hosts = new Set();
+  const isWildcardHost = !host || host === '0.0.0.0' || host === '::';
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+
+  if (publicHost) {
+    hosts.add(publicHost);
+  }
+
+  if (!isWildcardHost) {
+    hosts.add(host);
+  }
+
+  if (isWildcardHost || isLocalHost) {
+    hosts.add('localhost');
+  }
+
+  if (isWildcardHost) {
+    for (const interfaces of Object.values(os.networkInterfaces())) {
+      for (const address of interfaces || []) {
+        if ((address.family === 'IPv4' || address.family === 4) && !address.internal) {
+          hosts.add(address.address);
+        }
+      }
+    }
+  }
+
+  return [...hosts].map((address) => ({
+    http: `http://${address}:${port}`,
+    ws: `ws://${address}:${port}/ws`
+  }));
 }
 
 function redactCommandArgs(command, args) {

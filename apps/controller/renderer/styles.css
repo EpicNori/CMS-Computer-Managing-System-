@@ -233,6 +233,23 @@ label,
   margin-bottom: 12px;
 }
 
+.input-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.input-lock input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--warn);
+}
+
 .ghost {
   background: transparent;
 }
@@ -349,6 +366,25 @@ label,
   max-height: 560px;
   object-fit: contain;
   cursor: crosshair;
+}
+
+.screen-viewer.input-locked img {
+  cursor: not-allowed;
+}
+
+.screen-viewer.input-locked .screen-stage::after {
+  content: "Input gesperrt";
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 6px 9px;
+  border: 1px solid rgba(244, 183, 64, 0.45);
+  border-radius: 8px;
+  color: #fff1c8;
+  background: rgba(13, 17, 23, 0.78);
+  font-size: 0.78rem;
+  font-weight: 800;
+  pointer-events: none;
 }
 
 .screen-viewer img:not([src]) {

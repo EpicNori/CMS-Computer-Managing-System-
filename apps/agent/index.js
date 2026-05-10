@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 
 const serverUrl = process.env.CMS_SERVER_URL || 'ws://localhost:4377/ws';
+const connectionTimeoutMs = Number(process.env.CMS_CONNECTION_TIMEOUT_MS || 15_000);
 const token = process.env.CMS_ENROLLMENT_TOKEN || 'change-this-enrollment-token';
 const deviceName = process.env.CMS_DEVICE_NAME || os.hostname();
 const deviceId = process.env.CMS_DEVICE_ID;
@@ -31,11 +32,18 @@ let currentDeviceId = deviceId;
 let heartbeatTimer;
 let reconnectTimer;
 let screenStreamTimer;
+let screenStreamIntervalMs = 1000;
 
 connect();
 
 function connect() {
-  socket = new WebSocket(serverUrl);
+  try {
+    socket = new WebSocket(serverUrl, { handshakeTimeout: connectionTimeoutMs });
+  } catch (error) {
+    console.error(`Invalid CMS_SERVER_URL: ${error.message}`);
+    scheduleReconnect();
+    return;
+  }
 
   socket.on('open', () => {
     send({
@@ -208,9 +216,9 @@ async function installStartupBatch(message) {
       `$shortcut=Join-Path $startup 'CMS Agent Enrollment.lnk'`,
       `$wsh=New-Object -ComObject WScript.Shell`,
       `$link=$wsh.CreateShortcut($shortcut)`,
-      `$link.TargetPath=$env:ComSpec`,
-      `$link.Arguments='/c ""${psDoubleQuoted(batchPath)}""'`,
-      `$link.WorkingDirectory='${psDoubleQuoted(appRoot)}'`,
+      `$link.TargetPath='${psSingleQuoted(batchPath)}'`,
+      `$link.Arguments=''`,
+      `$link.WorkingDirectory='${psSingleQuoted(appRoot)}'`,
       `$link.WindowStyle=1`,
       `$link.Description='Starts the visible CMS agent enrollment script'`,
       `$link.Save()`,
@@ -389,11 +397,10 @@ function startScreenStream(message) {
   }
 
   const fps = clampNumber(message.fps || 1, 1, 4);
-  const intervalMs = Math.round(1000 / fps);
+  screenStreamIntervalMs = Math.round(1000 / fps);
 
   console.log(`Live screen stream started at ${fps} fps.`);
-  screenStreamTimer = setInterval(sendScreenFrame, intervalMs);
-  sendScreenFrame();
+  screenStreamTimer = setTimeout(streamScreenFrame, 0);
 }
 
 function stopScreenStream() {
@@ -401,8 +408,16 @@ function stopScreenStream() {
     console.log('Live screen stream stopped.');
   }
 
-  clearInterval(screenStreamTimer);
+  clearTimeout(screenStreamTimer);
   screenStreamTimer = null;
+}
+
+async function streamScreenFrame() {
+  await sendScreenFrame();
+
+  if (screenStreamTimer !== null) {
+    screenStreamTimer = setTimeout(streamScreenFrame, screenStreamIntervalMs);
+  }
 }
 
 async function sendScreenFrame() {
@@ -443,7 +458,7 @@ async function captureScreenFrame() {
       '$ms=New-Object System.IO.MemoryStream;',
       '$bmp.Save($ms,[System.Drawing.Imaging.ImageFormat]::Jpeg);',
       '$gfx.Dispose();$bmp.Dispose();',
-      '[Console]::WriteLine(($bounds.Width.ToString()+\",\"+$bounds.Height.ToString()+\",\"+[Convert]::ToBase64String($ms.ToArray())))'
+      '[Console]::WriteLine(($bounds.X.ToString()+\",\"+$bounds.Y.ToString()+\",\"+$bounds.Width.ToString()+\",\"+$bounds.Height.ToString()+\",\"+[Convert]::ToBase64String($ms.ToArray())))'
     ].join('')
   ], { maxOutput: 20_000_000, timeout: 15_000 });
 
@@ -451,13 +466,15 @@ async function captureScreenFrame() {
     throw new Error(result.stderr || 'Screen capture failed.');
   }
 
-  const [width, height, base64] = result.stdout.trim().split(',', 3);
+  const [offsetX, offsetY, width, height, base64] = result.stdout.trim().split(',', 5);
 
   if (!base64) {
     throw new Error('Screen capture returned no image data.');
   }
 
   return {
+    offsetX: Number(offsetX),
+    offsetY: Number(offsetY),
     width: Number(width),
     height: Number(height),
     screenshotDataUrl: `data:image/jpeg;base64,${base64}`
@@ -522,8 +539,8 @@ function psString(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-function psDoubleQuoted(value) {
-  return String(value).replaceAll('`', '``').replaceAll('"', '`"');
+function psSingleQuoted(value) {
+  return String(value).replaceAll("'", "''");
 }
 
 function sendKeysEscape(value) {

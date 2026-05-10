@@ -11,6 +11,7 @@ Ein sichtbares Remote-Operations-System fuer eigene und autorisierte Windows-/Se
 - PowerShell Command Runner, wenn der sichtbare Agent Shell-Zugriff erlaubt.
 - Schnellaktionen fuer Name, User, Netzwerk, System, Prozesse und opt-in Screen Snapshot.
 - Remote Input mit Screen-Klicks, Mausbuttons, Scrollen, Text und Hotkeys, wenn der sichtbare Agent es erlaubt.
+- Remote-Input-Sperre im Controller, damit Klicks/Hotkeys/Text erst nach bewusstem Entsperren gesendet werden.
 - Autostart-Schnellaktion, die die sichtbare Enrollment-BAT als normalen Windows-Startup-Shortcut registriert.
 - Audit-Log im Serverprozess.
 - Bewusst begrenzte Command-Allowlist als Startpunkt.
@@ -30,6 +31,71 @@ Diese Grenzen sind Absicht: Das Tool soll fuer eigene Server und autorisierte Ge
 npm install
 Copy-Item .env.example .env
 npm run dev
+```
+
+## Verbindung ueber andere Netzwerke
+
+Der Coordinator lauscht standardmaessig auf `0.0.0.0:4377`, also auf allen Netzwerkinterfaces des Server-PCs. Auf anderen Geraeten muss `CMS_SERVER_URL` auf die erreichbare Adresse des Coordinator-PCs zeigen, zum Beispiel:
+
+```powershell
+$env:CMS_SERVER_URL="ws://192.168.178.50:4377/ws"
+npm run dev:agent
+```
+
+Das gilt auch fuer einen Controller auf einem anderen PC:
+
+```powershell
+$env:CMS_SERVER_URL="ws://192.168.178.50:4377/ws"
+npm run dev:controller
+```
+
+Fuer VPN, Cloud-Server oder Portweiterleitung nutze statt der LAN-IP die VPN-IP, oeffentliche IP oder Domain. Stelle sicher, dass Firewall/Router TCP-Port `4377` zum Coordinator durchlassen. Fuer Internet-Betrieb sollte davor ein TLS-Reverse-Proxy oder VPN genutzt werden und die URL dann als `wss://deine-domain/ws` gesetzt werden.
+
+Damit ein PC aus einem anderen Internet/anderen Standort verbindet, muss der Coordinator von dort erreichbar sein:
+
+- Am einfachsten: Coordinator auf einen VPS/Server stellen und Agents mit `wss://deine-domain/ws` verbinden.
+- Alternativ: Portweiterleitung am Router auf den Coordinator-PC einrichten und Windows-Firewall fuer TCP `4377` freigeben.
+- Sicherer fuer privat: VPN wie WireGuard/Tailscale nutzen und `CMS_SERVER_URL` auf die VPN-IP setzen.
+
+Die Enrollment-BAT kann die externe Adresse direkt bekommen:
+
+```powershell
+scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
+```
+
+Die BAT funktioniert auch allein, wenn der Rest des Repos nicht daneben liegt. In diesem Fall installiert sie bei Bedarf Node.js LTS ueber `winget`, laedt die Projektdateien sichtbar von GitHub nach `%LOCALAPPDATA%\CMS-Computer-Managing-System`, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
+
+Optional koennen Downloadquelle und Zielordner vorher gesetzt werden:
+
+```powershell
+$env:CMS_REPO_ZIP_URL="https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
+$env:CMS_INSTALL_DIR="$env:LOCALAPPDATA\CMS-Computer-Managing-System"
+scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
+```
+
+Fuer eine machine-weite Installation kann die BAT als Administrator mit `--install-global` gestartet werden:
+
+```powershell
+scripts\enroll-agent.bat --install-global wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
+```
+
+Das legt einen sichtbaren geplanten Task `\CMS\CMS Visible Agent` an, der den Agent fuer jeden angemeldeten User startet. Das ist absichtlich kein klassischer Windows-Service: Services laufen in Session 0 und koennen den sichtbaren Desktop normalerweise nicht fuer Screen/Input erreichen.
+
+Fuer 24/7-Display-PCs gibt es zusaetzlich einen Display-Modus:
+
+```powershell
+scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws change-this-enrollment-token "Display 01"
+```
+
+Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon minimiert und haelt den Task wartend, damit Windows ihn bei einem Exit erneut starten kann. Logs landen standardmaessig in `%ProgramData%\CMS-Computer-Managing-System\logs\agent.log`. Der Modus ist fuer autorisierte Anzeige-/Kiosk-PCs gedacht und nicht versteckt.
+
+Im globalen oder Display-Modus installiert die BAT Node.js LTS per `winget --scope machine`, wenn Node/npm fehlen. Dafuer ist ein Administrator-Terminal noetig.
+
+Optional kann der Server fuer Statusausgaben eine feste externe Adresse anzeigen:
+
+```powershell
+$env:CMS_PUBLIC_HOST="deine-domain.example"
+npm run dev:server
 ```
 
 In einem zweiten Terminal kannst du lokal einen Test-Agent starten:

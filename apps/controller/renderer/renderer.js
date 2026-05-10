@@ -4,6 +4,7 @@ const state = {
   audit: [],
   lastScreen: null,
   streamActive: false,
+  inputLocked: true,
   pointer: { x: 0, y: 0 }
 };
 
@@ -18,6 +19,7 @@ const elements = {
   runShell: document.querySelector('#run-shell'),
   controlActions: document.querySelectorAll('.control-action'),
   inputActions: document.querySelectorAll('.input-action'),
+  inputLock: document.querySelector('#input-lock'),
   startStream: document.querySelector('#start-stream'),
   stopStream: document.querySelector('#stop-stream'),
   textInput: document.querySelector('#text-input'),
@@ -80,6 +82,8 @@ window.cms.onMessage((message) => {
       renderScreenFrame({
         width: message.width,
         height: message.height,
+        offsetX: message.offsetX,
+        offsetY: message.offsetY,
         screenshotDataUrl: message.screenshotDataUrl,
         capturedAt: new Date().toISOString()
       });
@@ -124,6 +128,14 @@ for (const action of elements.inputActions) {
   });
 }
 
+elements.inputLock.addEventListener('change', () => {
+  state.inputLocked = elements.inputLock.checked;
+  renderInputLockState();
+  elements.output.textContent = state.inputLocked
+    ? 'Remote Input ist gesperrt.'
+    : 'Remote Input ist entsperrt.';
+});
+
 elements.startStream.addEventListener('click', () => {
   if (!state.selectedDeviceId) {
     elements.output.textContent = 'Bitte zuerst ein Geraet auswaehlen.';
@@ -141,6 +153,10 @@ elements.stopStream.addEventListener('click', () => {
 });
 
 elements.screenImage.addEventListener('click', (event) => {
+  if (isInputLocked()) {
+    return;
+  }
+
   const point = imagePointToScreenPoint(event);
   if (!point) {
     return;
@@ -159,6 +175,10 @@ elements.screenImage.addEventListener('mousemove', (event) => {
 });
 
 elements.sendText.addEventListener('click', () => {
+  if (isInputLocked()) {
+    return;
+  }
+
   const text = elements.textInput.value;
   if (!text) {
     elements.output.textContent = 'Kein Text eingegeben.';
@@ -169,6 +189,10 @@ elements.sendText.addEventListener('click', () => {
 });
 
 elements.sendHotkey.addEventListener('click', () => {
+  if (isInputLocked()) {
+    return;
+  }
+
   runSelectedCommand('input:hotkey', { args: [elements.hotkey.value] });
 });
 
@@ -194,6 +218,10 @@ function stopScreenStream() {
 }
 
 function runInputAction(action) {
+  if (isInputLocked()) {
+    return;
+  }
+
   const { x, y } = state.pointer;
 
   if (action === 'click') {
@@ -238,13 +266,24 @@ function runSelectedCommand(command, options = {}) {
   });
 }
 
+function isInputLocked() {
+  if (!state.inputLocked) {
+    return false;
+  }
+
+  elements.output.textContent = 'Remote Input ist gesperrt. Entsperre ihn zuerst.';
+  return true;
+}
+
 function renderScreenFrame(frame) {
   state.lastScreen = {
     width: frame.width,
-    height: frame.height
+    height: frame.height,
+    offsetX: frame.offsetX || 0,
+    offsetY: frame.offsetY || 0
   };
   elements.screenImage.src = frame.screenshotDataUrl;
-  elements.screenMeta.textContent = `${new Date(frame.capturedAt || Date.now()).toLocaleTimeString()} - ${frame.width}x${frame.height}`;
+  elements.screenMeta.textContent = `${new Date(frame.capturedAt || Date.now()).toLocaleTimeString()} - ${frame.width}x${frame.height} @ ${state.lastScreen.offsetX},${state.lastScreen.offsetY}`;
 }
 
 function imagePointToScreenPoint(event) {
@@ -253,23 +292,68 @@ function imagePointToScreenPoint(event) {
     return null;
   }
 
-  const rect = elements.screenImage.getBoundingClientRect();
-  const x = Math.round(((event.clientX - rect.left) / rect.width) * state.lastScreen.width);
-  const y = Math.round(((event.clientY - rect.top) / rect.height) * state.lastScreen.height);
+  const imageRect = getRenderedImageRect();
+
+  if (
+    event.clientX < imageRect.left ||
+    event.clientX > imageRect.right ||
+    event.clientY < imageRect.top ||
+    event.clientY > imageRect.bottom
+  ) {
+    return null;
+  }
+
+  const relativeX = Math.round(((event.clientX - imageRect.left) / imageRect.width) * state.lastScreen.width);
+  const relativeY = Math.round(((event.clientY - imageRect.top) / imageRect.height) * state.lastScreen.height);
 
   return {
-    x: clamp(x, 0, state.lastScreen.width - 1),
-    y: clamp(y, 0, state.lastScreen.height - 1)
+    x: state.lastScreen.offsetX + clamp(relativeX, 0, state.lastScreen.width - 1),
+    y: state.lastScreen.offsetY + clamp(relativeY, 0, state.lastScreen.height - 1)
   };
 }
 
 function positionCursor(point) {
-  const rect = elements.screenImage.getBoundingClientRect();
-  const x = (point.x / state.lastScreen.width) * rect.width;
-  const y = (point.y / state.lastScreen.height) * rect.height;
+  const imageRect = getRenderedImageRect();
+  const stageRect = elements.screenImage.parentElement.getBoundingClientRect();
+  const relativeX = point.x - state.lastScreen.offsetX;
+  const relativeY = point.y - state.lastScreen.offsetY;
+  const x = imageRect.left - stageRect.left + (relativeX / state.lastScreen.width) * imageRect.width;
+  const y = imageRect.top - stageRect.top + (relativeY / state.lastScreen.height) * imageRect.height;
   elements.screenCursor.classList.remove('hidden');
   elements.screenCursor.style.left = `${x}px`;
   elements.screenCursor.style.top = `${y}px`;
+}
+
+function getRenderedImageRect() {
+  const rect = elements.screenImage.getBoundingClientRect();
+
+  if (!state.lastScreen || rect.width === 0 || rect.height === 0) {
+    return rect;
+  }
+
+  const naturalRatio = state.lastScreen.width / state.lastScreen.height;
+  const elementRatio = rect.width / rect.height;
+  let width = rect.width;
+  let height = rect.height;
+  let left = rect.left;
+  let top = rect.top;
+
+  if (elementRatio > naturalRatio) {
+    width = rect.height * naturalRatio;
+    left = rect.left + (rect.width - width) / 2;
+  } else {
+    height = rect.width / naturalRatio;
+    top = rect.top + (rect.height - height) / 2;
+  }
+
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height
+  };
 }
 
 function clamp(value, min, max) {
@@ -320,6 +404,19 @@ function renderSessionState() {
   const hasDevice = Boolean(state.selectedDeviceId);
   elements.startStream.disabled = !hasDevice || state.streamActive;
   elements.stopStream.disabled = !hasDevice || !state.streamActive;
+  renderInputLockState();
+}
+
+function renderInputLockState() {
+  elements.inputLock.checked = state.inputLocked;
+  elements.screenViewer.classList.toggle('input-locked', state.inputLocked);
+
+  for (const action of elements.inputActions) {
+    action.disabled = state.inputLocked;
+  }
+
+  elements.sendText.disabled = state.inputLocked;
+  elements.sendHotkey.disabled = state.inputLocked;
 }
 
 function renderAudit() {
@@ -339,6 +436,7 @@ function renderAudit() {
 
 renderMetrics();
 renderSessionState();
+renderInputLockState();
 
 function escapeHtml(value) {
   return String(value)

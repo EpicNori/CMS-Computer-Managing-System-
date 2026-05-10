@@ -5,10 +5,12 @@ import WebSocket from 'ws';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serverUrl = process.env.CMS_SERVER_URL || 'ws://localhost:4377/ws';
+const connectionTimeoutMs = Number(process.env.CMS_CONNECTION_TIMEOUT_MS || 15_000);
 const adminToken = process.env.CMS_ADMIN_TOKEN || 'change-this-admin-token';
 
 let window;
 let socket;
+let reconnectTimer;
 
 app.whenReady().then(() => {
   window = new BrowserWindow({
@@ -51,7 +53,19 @@ ipcMain.handle('screen:stream:stop', (_event, payload) => {
 });
 
 function connect() {
-  socket = new WebSocket(serverUrl);
+  if (socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) {
+    return;
+  }
+
+  clearTimeout(reconnectTimer);
+  try {
+    socket = new WebSocket(serverUrl, { handshakeTimeout: connectionTimeoutMs });
+  } catch (error) {
+    socket = null;
+    emit('connection', { status: 'error', serverUrl, message: `Invalid CMS_SERVER_URL: ${error.message}` });
+    scheduleReconnect();
+    return;
+  }
 
   socket.on('open', () => {
     send({ type: 'hello', role: 'controller', token: adminToken });
@@ -67,8 +81,9 @@ function connect() {
   });
 
   socket.on('close', () => {
+    socket = null;
     emit('connection', { status: 'offline', serverUrl });
-    setTimeout(connect, 5_000);
+    scheduleReconnect();
   });
 
   socket.on('error', (error) => {
@@ -79,7 +94,15 @@ function connect() {
 function send(message) {
   if (socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(message));
+    return;
   }
+
+  emit('message', { type: 'error', message: 'Controller is not connected to the CMS server yet.' });
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(connect, 5_000);
 }
 
 function emit(channel, payload) {
