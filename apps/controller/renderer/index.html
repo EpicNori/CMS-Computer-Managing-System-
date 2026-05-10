@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CMS Controller</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Remote Operations Console</p>
+          <h1>Computer Managing System</h1>
+        </div>
+        <div class="connection">
+          <span id="connection-dot" class="dot offline"></span>
+          <div>
+            <strong id="connection-status">Offline</strong>
+            <span id="connection-url">Nicht verbunden</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="metrics" aria-label="Systemstatus">
+        <div class="metric">
+          <span id="metric-devices">0</span>
+          <strong>Geraete</strong>
+        </div>
+        <div class="metric">
+          <span id="metric-online">0</span>
+          <strong>Online</strong>
+        </div>
+        <div class="metric">
+          <span id="metric-audit">0</span>
+          <strong>Audit Events</strong>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <aside class="device-column">
+          <div class="section-head">
+            <h2>Geraete</h2>
+            <button id="refresh" class="ghost">Aktualisieren</button>
+          </div>
+          <div id="devices" class="devices"></div>
+        </aside>
+
+        <section class="remote-column">
+          <div class="session-head">
+            <div>
+              <span class="label">Aktive Verbindung</span>
+              <h2 id="selected-device">Kein Geraet ausgewaehlt</h2>
+            </div>
+            <div class="session-actions">
+              <button id="start-stream" class="primary">Live starten</button>
+              <button id="stop-stream" class="danger">Stop</button>
+            </div>
+          </div>
+
+          <div id="screen-viewer" class="screen-viewer">
+            <div class="screen-toolbar">
+              <strong>Live Screen</strong>
+              <span id="screen-meta">Kein Stream</span>
+            </div>
+            <div class="screen-stage">
+              <img id="screen-image" alt="Live Screen des ausgewaehlten Geraets" />
+              <span id="screen-cursor" class="screen-cursor hidden"></span>
+            </div>
+          </div>
+
+          <div class="remote-grid">
+            <section class="tool-panel">
+              <div class="section-head">
+                <h3>Schnellaktionen</h3>
+              </div>
+              <div class="button-grid">
+                <button class="control-action" data-command="screen:snapshot">Snapshot</button>
+                <button class="control-action" data-command="hostname">Hostname</button>
+                <button class="control-action" data-command="whoami">User</button>
+                <button class="control-action" data-command="tasklist">Prozesse</button>
+                <button class="control-action" data-command="ipconfig">Netzwerk</button>
+                <button class="control-action" data-command="systeminfo">System</button>
+                <button class="control-action" data-command="startup:install">BAT Autostart</button>
+              </div>
+
+              <label for="command">Allowlist Command</label>
+              <div class="inline-control">
+                <select id="command">
+                  <option value="hostname">hostname</option>
+                  <option value="whoami">whoami</option>
+                  <option value="ipconfig">ipconfig /all</option>
+                  <option value="systeminfo">systeminfo</option>
+                  <option value="tasklist">tasklist</option>
+                  <option value="screen:snapshot">screen snapshot</option>
+                  <option value="startup:install">BAT in Autostart</option>
+                </select>
+                <button id="run-command">Ausfuehren</button>
+              </div>
+            </section>
+
+            <section class="tool-panel">
+              <div class="section-head">
+                <h3>Remote Input</h3>
+              </div>
+              <div class="button-grid">
+                <button class="input-action" data-input="click">Linksklick</button>
+                <button class="input-action" data-input="doubleClick">Doppelklick</button>
+                <button class="input-action" data-input="rightClick">Rechtsklick</button>
+                <button class="input-action" data-input="scrollUp">Scroll hoch</button>
+                <button class="input-action" data-input="scrollDown">Scroll runter</button>
+              </div>
+
+              <label for="text-input">Text senden</label>
+              <textarea id="text-input" rows="3" spellcheck="false"></textarea>
+              <button id="send-text" class="primary block">Text tippen</button>
+
+              <label for="hotkey">Hotkey</label>
+              <div class="inline-control">
+                <select id="hotkey">
+                  <option value="ctrl+c">Ctrl+C</option>
+                  <option value="ctrl+v">Ctrl+V</option>
+                  <option value="ctrl+a">Ctrl+A</option>
+                  <option value="alt+tab">Alt+Tab</option>
+                  <option value="win+r">Win+R</option>
+                  <option value="ctrl+shift+esc">Task Manager</option>
+                  <option value="alt+f4">Alt+F4</option>
+                  <option value="enter">Enter</option>
+                  <option value="escape">Escape</option>
+                </select>
+                <button id="send-hotkey">Senden</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <aside class="ops-column">
+          <section class="terminal-panel">
+            <div class="section-head">
+              <h3>PowerShell</h3>
+            </div>
+            <textarea id="shell-command" rows="5" spellcheck="false" placeholder="Get-Process | Select-Object -First 10"></textarea>
+            <button id="run-shell" class="primary block">Shell ausfuehren</button>
+            <pre id="output">Noch keine Ausgabe.</pre>
+          </section>
+
+          <section class="audit-panel">
+            <div class="section-head">
+              <h3>Audit</h3>
+            </div>
+            <div id="audit" class="audit"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

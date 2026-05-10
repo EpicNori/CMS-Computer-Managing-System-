@@ -1,0 +1,26 @@
+{
+  "name": "computer-managing-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Authorized Windows server/device management MVP with a coordinator, visible agent, and Electron controller.",
+  "type": "module",
+  "main": "apps/controller/main.js",
+  "scripts": {
+    "dev:server": "node apps/server/index.js",
+    "dev:agent": "node apps/agent/index.js",
+    "dev:controller": "electron apps/controller/main.js",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:controller\"",
+    "check": "node --check apps/server/index.js && node --check apps/agent/index.js && node --check apps/controller/main.js && node --check apps/controller/renderer/renderer.js"
+  },
+  "dependencies": {
+    "@electron/remote": "^2.1.2",
+    "dotenv": "^16.4.7",
+    "electron": "^42.0.1",
+    "express": "^4.21.2",
+    "nanoid": "^5.0.9",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
