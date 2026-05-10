@@ -37,7 +37,8 @@ const elements = {
   connectionUrl: document.querySelector('#connection-url'),
   metricDevices: document.querySelector('#metric-devices'),
   metricOnline: document.querySelector('#metric-online'),
-  metricAudit: document.querySelector('#metric-audit')
+  metricAudit: document.querySelector('#metric-audit'),
+  tabs: document.querySelectorAll('.tab')
 };
 
 window.cms.onConnection((connection) => {
@@ -130,6 +131,14 @@ for (const action of elements.controlActions) {
 for (const action of elements.inputActions) {
   action.addEventListener('click', () => {
     runInputAction(action.dataset.input);
+  });
+}
+
+for (const tab of elements.tabs) {
+  tab.addEventListener('click', () => {
+    for (const item of elements.tabs) {
+      item.classList.toggle('active', item === tab);
+    }
   });
 }
 
