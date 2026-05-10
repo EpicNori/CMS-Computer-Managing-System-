@@ -2,6 +2,20 @@
 setlocal
 
 REM Visible enrollment script for authorized devices only.
+REM ---------------------- CONFIG ----------------------
+REM Edit these defaults, or pass URL/token/name as arguments.
+set "CMS_DEFAULT_SERVER_URL=ws://localhost:4377/ws"
+set "CMS_DEFAULT_ENROLLMENT_TOKEN=change-this-enrollment-token"
+set "CMS_DEFAULT_DEVICE_NAME=%COMPUTERNAME%"
+set "CMS_DEFAULT_CONNECTION_TIMEOUT_MS=15000"
+set "CMS_DEFAULT_ALLOW_SCREEN_VIEW=1"
+set "CMS_DEFAULT_ALLOW_REMOTE_CONTROL=1"
+set "CMS_DEFAULT_ALLOW_SHELL=1"
+set "CMS_DEFAULT_REPO_ZIP_URL=https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
+set "CMS_DEFAULT_USER_INSTALL_DIR=%LOCALAPPDATA%\CMS-Computer-Managing-System"
+set "CMS_DEFAULT_MACHINE_INSTALL_DIR=%ProgramData%\CMS-Computer-Managing-System"
+REM -------------------- END CONFIG --------------------
+
 REM Usage:
 REM   enroll-agent.bat ws://SERVER-IP:4377/ws enrollment-token "Device Name"
 REM   enroll-agent.bat wss://your-domain.example/ws enrollment-token "Device Name"
@@ -27,20 +41,20 @@ if /i "%~1"=="--display-run" (
 )
 
 set "CMS_SERVER_URL=%~1"
-if "%CMS_SERVER_URL%"=="" set "CMS_SERVER_URL=ws://localhost:4377/ws"
+if "%CMS_SERVER_URL%"=="" set "CMS_SERVER_URL=%CMS_DEFAULT_SERVER_URL%"
 set "CMS_ENROLLMENT_TOKEN=%~2"
-if "%CMS_ENROLLMENT_TOKEN%"=="" set "CMS_ENROLLMENT_TOKEN=change-this-enrollment-token"
+if "%CMS_ENROLLMENT_TOKEN%"=="" set "CMS_ENROLLMENT_TOKEN=%CMS_DEFAULT_ENROLLMENT_TOKEN%"
 set "CMS_DEVICE_NAME=%~3"
-if "%CMS_DEVICE_NAME%"=="" set "CMS_DEVICE_NAME=%COMPUTERNAME%"
-set "CMS_CONNECTION_TIMEOUT_MS=15000"
-set "CMS_ALLOW_SCREEN_VIEW=1"
-set "CMS_ALLOW_REMOTE_CONTROL=1"
-set "CMS_ALLOW_SHELL=1"
+if "%CMS_DEVICE_NAME%"=="" set "CMS_DEVICE_NAME=%CMS_DEFAULT_DEVICE_NAME%"
+set "CMS_CONNECTION_TIMEOUT_MS=%CMS_DEFAULT_CONNECTION_TIMEOUT_MS%"
+set "CMS_ALLOW_SCREEN_VIEW=%CMS_DEFAULT_ALLOW_SCREEN_VIEW%"
+set "CMS_ALLOW_REMOTE_CONTROL=%CMS_DEFAULT_ALLOW_REMOTE_CONTROL%"
+set "CMS_ALLOW_SHELL=%CMS_DEFAULT_ALLOW_SHELL%"
 set "CMS_REPO_ZIP_URL=%CMS_REPO_ZIP_URL%"
-if "%CMS_REPO_ZIP_URL%"=="" set "CMS_REPO_ZIP_URL=https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
+if "%CMS_REPO_ZIP_URL%"=="" set "CMS_REPO_ZIP_URL=%CMS_DEFAULT_REPO_ZIP_URL%"
 set "CMS_INSTALL_DIR=%CMS_INSTALL_DIR%"
-if "%CMS_INSTALL_DIR%"=="" if "%CMS_INSTALL_GLOBAL%"=="1" set "CMS_INSTALL_DIR=%ProgramData%\CMS-Computer-Managing-System"
-if "%CMS_INSTALL_DIR%"=="" set "CMS_INSTALL_DIR=%LOCALAPPDATA%\CMS-Computer-Managing-System"
+if "%CMS_INSTALL_DIR%"=="" if "%CMS_INSTALL_GLOBAL%"=="1" set "CMS_INSTALL_DIR=%CMS_DEFAULT_MACHINE_INSTALL_DIR%"
+if "%CMS_INSTALL_DIR%"=="" set "CMS_INSTALL_DIR=%CMS_DEFAULT_USER_INSTALL_DIR%"
 set "CMS_LOG_DIR=%CMS_LOG_DIR%"
 if "%CMS_LOG_DIR%"=="" set "CMS_LOG_DIR=%CMS_INSTALL_DIR%\logs"
 

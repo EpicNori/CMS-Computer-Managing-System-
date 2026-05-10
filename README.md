@@ -64,6 +64,7 @@ scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-enrollment-to
 ```
 
 Die BAT funktioniert auch allein, wenn der Rest des Repos nicht daneben liegt. In diesem Fall installiert sie bei Bedarf Node.js LTS ueber `winget`, laedt die Projektdateien sichtbar von GitHub nach `%LOCALAPPDATA%\CMS-Computer-Managing-System`, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
+Die wichtigsten Standardwerte stehen ganz oben in der BAT im `CONFIG`-Block und koennen dort direkt angepasst werden.
 
 Optional koennen Downloadquelle und Zielordner vorher gesetzt werden:
 

@@ -17,6 +17,7 @@ const elements = {
   refresh: document.querySelector('#refresh'),
   runCommand: document.querySelector('#run-command'),
   runShell: document.querySelector('#run-shell'),
+  clearOutput: document.querySelector('#clear-output'),
   controlActions: document.querySelectorAll('.control-action'),
   inputActions: document.querySelectorAll('.input-action'),
   inputLock: document.querySelector('#input-lock'),
@@ -70,7 +71,7 @@ window.cms.onMessage((message) => {
   }
 
   if (message.type === 'screen:error') {
-    elements.output.textContent = message.message;
+    appendOutput(message.message, 'Stream Fehler');
     elements.screenMeta.textContent = 'Stream Fehler';
     state.streamActive = false;
     renderSessionState();
@@ -89,7 +90,7 @@ window.cms.onMessage((message) => {
       });
     }
 
-    elements.output.textContent = [
+    appendOutput([
       `Exit Code: ${message.exitCode}`,
       `Duration: ${message.durationMs ?? 'unknown'} ms`,
       '',
@@ -98,11 +99,11 @@ window.cms.onMessage((message) => {
       '',
       'STDERR:',
       message.stderr || '(empty)'
-    ].join('\n');
+    ].join('\n'), 'Command Result');
   }
 
   if (message.type === 'command:error' || message.type === 'error') {
-    elements.output.textContent = message.message;
+    appendOutput(message.message, 'Fehler');
   }
 });
 
@@ -112,6 +113,10 @@ elements.refresh.addEventListener('click', () => {
 
 elements.runCommand.addEventListener('click', () => {
   runSelectedCommand(elements.command.value);
+});
+
+elements.clearOutput.addEventListener('click', () => {
+  elements.output.textContent = 'Noch keine Ausgabe.';
 });
 
 for (const action of elements.controlActions) {
@@ -131,14 +136,14 @@ for (const action of elements.inputActions) {
 elements.inputLock.addEventListener('change', () => {
   state.inputLocked = elements.inputLock.checked;
   renderInputLockState();
-  elements.output.textContent = state.inputLocked
+  appendOutput(state.inputLocked
     ? 'Remote Input ist gesperrt.'
-    : 'Remote Input ist entsperrt.';
+    : 'Remote Input ist entsperrt.', 'Remote Input');
 });
 
 elements.startStream.addEventListener('click', () => {
   if (!state.selectedDeviceId) {
-    elements.output.textContent = 'Bitte zuerst ein Geraet auswaehlen.';
+    appendOutput('Bitte zuerst ein Geraet auswaehlen.', 'Hinweis');
     return;
   }
 
@@ -181,7 +186,7 @@ elements.sendText.addEventListener('click', () => {
 
   const text = elements.textInput.value;
   if (!text) {
-    elements.output.textContent = 'Kein Text eingegeben.';
+    appendOutput('Kein Text eingegeben.', 'Hinweis');
     return;
   }
 
@@ -200,7 +205,7 @@ elements.runShell.addEventListener('click', () => {
   const command = elements.shellCommand.value.trim();
 
   if (!command) {
-    elements.output.textContent = 'Kein Shell-Command eingegeben.';
+    appendOutput('Kein Shell-Command eingegeben.', 'Hinweis');
     return;
   }
 
@@ -223,7 +228,7 @@ function runInputAction(action) {
   }
 
   if (!state.pointer) {
-    elements.output.textContent = 'Bitte zuerst im Live Screen einen Punkt auswaehlen.';
+    appendOutput('Bitte zuerst im Live Screen einen Punkt auswaehlen.', 'Hinweis');
     return;
   }
 
@@ -256,12 +261,12 @@ function runInputAction(action) {
 
 function runSelectedCommand(command, options = {}) {
   if (!state.selectedDeviceId) {
-    elements.output.textContent = 'Bitte zuerst ein Geraet auswaehlen.';
+    appendOutput('Bitte zuerst ein Geraet auswaehlen.', 'Hinweis');
     return;
   }
 
   if (!options.quiet) {
-    elements.output.textContent = `${command} laeuft...`;
+    appendOutput(`${command} laeuft...`, 'Command');
   }
 
   window.cms.runCommand({
@@ -276,8 +281,18 @@ function isInputLocked() {
     return false;
   }
 
-  elements.output.textContent = 'Remote Input ist gesperrt. Entsperre ihn zuerst.';
+  appendOutput('Remote Input ist gesperrt. Entsperre ihn zuerst.', 'Remote Input');
   return true;
+}
+
+function appendOutput(message, title = 'Ausgabe') {
+  const timestamp = new Date().toLocaleTimeString();
+  const entry = [`[${timestamp}] ${title}`, String(message)].join('\n');
+
+  elements.output.textContent = elements.output.textContent === 'Noch keine Ausgabe.'
+    ? entry
+    : `${elements.output.textContent}\n\n${entry}`;
+  elements.output.scrollTop = elements.output.scrollHeight;
 }
 
 function renderScreenFrame(frame) {
@@ -293,7 +308,7 @@ function renderScreenFrame(frame) {
 
 function imagePointToScreenPoint(event) {
   if (!state.lastScreen) {
-    elements.output.textContent = 'Erst Screen aktualisieren, dann klicken.';
+    appendOutput('Erst Screen aktualisieren, dann klicken.', 'Hinweis');
     return null;
   }
 
