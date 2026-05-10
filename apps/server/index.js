@@ -256,9 +256,9 @@ function handleControllerMessage(socket, message) {
   send(socket, { type: 'error', message: `Unsupported controller message: ${message.type}` });
 }
 
-function handleAgentMessage(_socket, message) {
+function handleAgentMessage(socket, message) {
   if (message.type === 'heartbeat') {
-    const device = devices.get(message.deviceId);
+    const device = devices.get(socket.deviceId);
     if (device) {
       device.lastSeen = new Date().toISOString();
       device.status = 'online';
@@ -269,7 +269,6 @@ function handleAgentMessage(_socket, message) {
 
   if (message.type === 'command:result') {
     const pending = pendingCommands.get(message.commandId);
-    pendingCommands.delete(message.commandId);
 
     if (!pending) {
       appendAudit('command.late_result', {
@@ -280,6 +279,17 @@ function handleAgentMessage(_socket, message) {
       return;
     }
 
+    if (pending.deviceId !== socket.deviceId) {
+      appendAudit('command.rejected_result', {
+        commandId: message.commandId,
+        deviceId: socket.deviceId,
+        expectedDeviceId: pending.deviceId
+      });
+      broadcastAudit();
+      return;
+    }
+
+    pendingCommands.delete(message.commandId);
     clearTimeout(pending.timeout);
     appendAudit('command.completed', {
       commandId: message.commandId,
@@ -296,7 +306,11 @@ function handleAgentMessage(_socket, message) {
   }
 
   if (message.type === 'screen:frame') {
-    const subscribers = screenSubscribers.get(message.deviceId);
+    if (message.deviceId !== socket.deviceId) {
+      return;
+    }
+
+    const subscribers = screenSubscribers.get(socket.deviceId);
 
     if (!subscribers) {
       return;
@@ -309,7 +323,11 @@ function handleAgentMessage(_socket, message) {
   }
 
   if (message.type === 'screen:error') {
-    const subscribers = screenSubscribers.get(message.deviceId);
+    if (message.deviceId !== socket.deviceId) {
+      return;
+    }
+
+    const subscribers = screenSubscribers.get(socket.deviceId);
 
     if (!subscribers) {
       return;

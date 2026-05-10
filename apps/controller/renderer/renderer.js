@@ -5,7 +5,7 @@ const state = {
   lastScreen: null,
   streamActive: false,
   inputLocked: true,
-  pointer: { x: 0, y: 0 }
+  pointer: null
 };
 
 const elements = {
@@ -222,6 +222,11 @@ function runInputAction(action) {
     return;
   }
 
+  if (!state.pointer) {
+    elements.output.textContent = 'Bitte zuerst im Live Screen einen Punkt auswaehlen.';
+    return;
+  }
+
   const { x, y } = state.pointer;
 
   if (action === 'click') {
@@ -385,7 +390,11 @@ function renderDevices() {
       }
 
       state.selectedDeviceId = device.id;
+      state.lastScreen = null;
+      state.pointer = null;
       elements.selectedDevice.textContent = device.name;
+      elements.screenImage.removeAttribute('src');
+      elements.screenMeta.textContent = 'Kein Stream';
       elements.screenCursor.classList.add('hidden');
       renderDevices();
       renderSessionState();

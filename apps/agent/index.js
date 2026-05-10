@@ -302,8 +302,8 @@ async function runInputCommand(message) {
 }
 
 async function mouseClick(args, button, count) {
-  const x = clampNumber(args[0], 0, 32767);
-  const y = clampNumber(args[1], 0, 32767);
+  const x = clampNumber(args[0], -32768, 32767);
+  const y = clampNumber(args[1], -32768, 32767);
   const down = button === 'right' ? '0x0008' : '0x0002';
   const up = button === 'right' ? '0x0010' : '0x0004';
   const clicks = [];

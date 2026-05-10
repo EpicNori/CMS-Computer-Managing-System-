@@ -90,6 +90,7 @@ scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws change-
 Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon minimiert und haelt den Task wartend, damit Windows ihn bei einem Exit erneut starten kann. Logs landen standardmaessig in `%ProgramData%\CMS-Computer-Managing-System\logs\agent.log`. Der Modus ist fuer autorisierte Anzeige-/Kiosk-PCs gedacht und nicht versteckt.
 
 Im globalen oder Display-Modus installiert die BAT Node.js LTS per `winget --scope machine`, wenn Node/npm fehlen. Dafuer ist ein Administrator-Terminal noetig.
+Wenn `--install-global` oder `--install-display` aus einem temporaeren Ordner gestartet wird, kopiert die BAT die Projektdateien zuerst nach `%ProgramData%\CMS-Computer-Managing-System`, damit der geplante Task spaeter nicht von diesem temporaeren Pfad abhaengt.
 
 Optional kann der Server fuer Statusausgaben eine feste externe Adresse anzeigen:
 

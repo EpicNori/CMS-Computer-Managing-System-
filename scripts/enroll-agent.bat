@@ -82,6 +82,9 @@ del "%CMS_BOOTSTRAP_ZIP%" >nul 2>nul
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item -LiteralPath $env:CMS_BOOTSTRAP_EXTRACT -Recurse -Force" >nul 2>nul
 
 :run_agent
+if "%CMS_INSTALL_GLOBAL%"=="1" call :ensure_stable_install
+if errorlevel 1 exit /b 1
+
 cd /d "%CMS_ROOT%"
 call :ensure_node
 if errorlevel 1 exit /b 1
@@ -150,6 +153,20 @@ exit /b 0
 
 :refresh_path
 for /f "usebackq tokens=* delims=" %%A in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')"`) do set "PATH=%%A"
+exit /b 0
+
+:ensure_stable_install
+if /i "%CMS_ROOT%"=="%CMS_INSTALL_DIR%" exit /b 0
+
+echo Copying CMS files to stable machine install path "%CMS_INSTALL_DIR%"...
+if not exist "%CMS_INSTALL_DIR%" mkdir "%CMS_INSTALL_DIR%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$source=(Resolve-Path -LiteralPath $env:CMS_ROOT).Path; $target=$env:CMS_INSTALL_DIR; if ($source.TrimEnd('\') -ieq $target.TrimEnd('\')) { exit 0 }; $exclude=@('.git','node_modules','.env'); Get-ChildItem -LiteralPath $source -Force | Where-Object { $exclude -notcontains $_.Name } | ForEach-Object { $dest=Join-Path $target $_.Name; if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }; Copy-Item -LiteralPath $_.FullName -Destination $dest -Recurse -Force }"
+if errorlevel 1 (
+  echo Failed to copy CMS files to "%CMS_INSTALL_DIR%".
+  exit /b 1
+)
+
+set "CMS_ROOT=%CMS_INSTALL_DIR%"
 exit /b 0
 
 :install_global_task
