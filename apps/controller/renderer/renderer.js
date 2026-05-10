@@ -16,6 +16,8 @@ const elements = {
   audit: document.querySelector('#audit'),
   refresh: document.querySelector('#refresh'),
   runCommand: document.querySelector('#run-command'),
+  refreshRate: document.querySelector('#refresh-rate'),
+  setRefreshRate: document.querySelector('#set-refresh-rate'),
   runShell: document.querySelector('#run-shell'),
   clearOutput: document.querySelector('#clear-output'),
   controlActions: document.querySelectorAll('.control-action'),
@@ -37,8 +39,7 @@ const elements = {
   connectionUrl: document.querySelector('#connection-url'),
   metricDevices: document.querySelector('#metric-devices'),
   metricOnline: document.querySelector('#metric-online'),
-  metricAudit: document.querySelector('#metric-audit'),
-  tabs: document.querySelectorAll('.tab')
+  metricAudit: document.querySelector('#metric-audit')
 };
 
 window.cms.onConnection((connection) => {
@@ -116,6 +117,10 @@ elements.runCommand.addEventListener('click', () => {
   runSelectedCommand(elements.command.value);
 });
 
+elements.setRefreshRate.addEventListener('click', () => {
+  runSelectedCommand('display:setRefreshRate', { args: [elements.refreshRate.value] });
+});
+
 elements.clearOutput.addEventListener('click', () => {
   elements.output.textContent = 'Noch keine Ausgabe.';
 });
@@ -131,14 +136,6 @@ for (const action of elements.controlActions) {
 for (const action of elements.inputActions) {
   action.addEventListener('click', () => {
     runInputAction(action.dataset.input);
-  });
-}
-
-for (const tab of elements.tabs) {
-  tab.addEventListener('click', () => {
-    for (const item of elements.tabs) {
-      item.classList.toggle('active', item === tab);
-    }
   });
 }
 

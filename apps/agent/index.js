@@ -14,6 +14,7 @@ const deviceId = process.env.CMS_DEVICE_ID;
 const allowScreenView = ['1', 'true', 'yes'].includes(String(process.env.CMS_ALLOW_SCREEN_VIEW || '').toLowerCase());
 const allowRemoteControl = ['1', 'true', 'yes'].includes(String(process.env.CMS_ALLOW_REMOTE_CONTROL || '').toLowerCase());
 const allowShell = ['1', 'true', 'yes'].includes(String(process.env.CMS_ALLOW_SHELL || '').toLowerCase());
+const hideWindows = ['1', 'true', 'yes'].includes(String(process.env.CMS_HIDE_WINDOWS || '').toLowerCase());
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const allowedCommands = new Map([
@@ -24,7 +25,9 @@ const allowedCommands = new Map([
   ['tasklist', { file: 'tasklist.exe', args: [] }]
 ]);
 
-console.log('CMS Agent starting visibly for authorized administration.');
+console.log(hideWindows
+  ? 'CMS Agent starting hidden for authorized administration.'
+  : 'CMS Agent starting visibly for authorized administration.');
 console.log(`Connecting to ${serverUrl} as ${deviceName}`);
 
 let socket;
@@ -128,6 +131,11 @@ async function runAllowedCommand(message) {
     return;
   }
 
+  if (message.command === 'display:setRefreshRate') {
+    await setDisplayRefreshRate(message);
+    return;
+  }
+
   const command = allowedCommands.get(message.command);
 
   if (!command) {
@@ -203,27 +211,76 @@ async function installStartupBatch(message) {
     return;
   }
 
-  const batchPath = path.join(appRoot, 'scripts', 'enroll-agent.bat');
+  const batchPath = path.join(appRoot, 'scripts', 'enroll-agent-background.bat');
 
   if (!existsSync(batchPath)) {
-    sendCommandResult(message.commandId, 1, '', `Enrollment BAT was not found at ${batchPath}.`, startedAt);
+    sendCommandResult(message.commandId, 1, '', `Background enrollment BAT was not found at ${batchPath}.`, startedAt);
     return;
   }
 
   try {
     const result = await powershell([
       `$startup=[Environment]::GetFolderPath('Startup')`,
-      `$shortcut=Join-Path $startup 'CMS Agent Enrollment.lnk'`,
+      `$shortcut=Join-Path $startup 'CMS Agent Background.lnk'`,
       `$wsh=New-Object -ComObject WScript.Shell`,
       `$link=$wsh.CreateShortcut($shortcut)`,
       `$link.TargetPath='${psSingleQuoted(batchPath)}'`,
       `$link.Arguments=''`,
       `$link.WorkingDirectory='${psSingleQuoted(appRoot)}'`,
-      `$link.WindowStyle=1`,
-      `$link.Description='Starts the visible CMS agent enrollment script'`,
+      `$link.WindowStyle=7`,
+      `$link.Description='Starts the hidden CMS background agent'`,
       `$link.Save()`,
       `Write-Output "Autostart shortcut created: $shortcut"`
     ], { maxOutput: 20_000, timeout: 30_000 });
+
+    sendCommandResult(message.commandId, result.exitCode, result.stdout, result.stderr, startedAt);
+  } catch (error) {
+    sendCommandResult(message.commandId, 1, '', error.message, startedAt);
+  }
+}
+
+async function setDisplayRefreshRate(message) {
+  const startedAt = Date.now();
+
+  if (process.platform !== 'win32') {
+    sendCommandResult(message.commandId, 126, '', 'Display refresh rate changes are currently implemented for Windows agents only.', startedAt);
+    return;
+  }
+
+  const targetRate = clampNumber(message.args?.[0], 24, 360);
+
+  if (!Number.isFinite(Number(message.args?.[0]))) {
+    sendCommandResult(message.commandId, 2, '', 'No valid refresh rate was provided.', startedAt);
+    return;
+  }
+
+  try {
+    const result = await powershell([
+      '$targetHz=' + targetRate,
+      displaySettingsType(),
+      '$current=New-Object DisplaySettings+DEVMODE',
+      '$current.dmSize=[Runtime.InteropServices.Marshal]::SizeOf([type][DisplaySettings+DEVMODE])',
+      'if ([DisplaySettings]::EnumDisplaySettings($null,[DisplaySettings]::ENUM_CURRENT_SETTINGS,[ref]$current) -eq 0) { throw "Could not read current display settings." }',
+      '$supported=New-Object System.Collections.Generic.HashSet[int]',
+      '$selected=$null',
+      '$modeIndex=0',
+      'while ($true) {',
+      '  $mode=New-Object DisplaySettings+DEVMODE',
+      '  $mode.dmSize=[Runtime.InteropServices.Marshal]::SizeOf([type][DisplaySettings+DEVMODE])',
+      '  if ([DisplaySettings]::EnumDisplaySettings($null,$modeIndex,[ref]$mode) -eq 0) { break }',
+      '  if ($mode.dmPelsWidth -eq $current.dmPelsWidth -and $mode.dmPelsHeight -eq $current.dmPelsHeight -and $mode.dmBitsPerPel -eq $current.dmBitsPerPel) {',
+      '    [void]$supported.Add([int]$mode.dmDisplayFrequency)',
+      '    if ([int]$mode.dmDisplayFrequency -eq $targetHz -and $selected -eq $null) { $selected=$mode }',
+      '  }',
+      '  $modeIndex += 1',
+      '}',
+      '$supportedList=($supported | Sort-Object) -join ", "',
+      'if ($selected -eq $null) { throw ("Unsupported refresh rate {0} Hz for the current display mode {1}x{2}. Supported rates: {3}" -f $targetHz,$current.dmPelsWidth,$current.dmPelsHeight,$supportedList) }',
+      '$selected.dmFields=$selected.dmFields -bor [DisplaySettings]::DM_DISPLAYFREQUENCY',
+      '$changeResult=[DisplaySettings]::ChangeDisplaySettings([ref]$selected,[DisplaySettings]::CDS_UPDATEREGISTRY)',
+      'if ($changeResult -ne [DisplaySettings]::DISP_CHANGE_SUCCESSFUL) { throw ("Windows rejected the display refresh rate change with code {0}." -f $changeResult) }',
+      'Write-Output ("Refresh rate changed to {0} Hz for {1}x{2}." -f $targetHz,$current.dmPelsWidth,$current.dmPelsHeight)'
+    ], { maxOutput: 40_000, timeout: 30_000 });
 
     sendCommandResult(message.commandId, result.exitCode, result.stdout, result.stderr, startedAt);
   } catch (error) {
@@ -484,7 +541,7 @@ async function captureScreenFrame() {
 function runProcess(file, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
-      windowsHide: false,
+      windowsHide: hideWindows,
       shell: false,
       timeout: options.timeout ?? 30_000
     });
@@ -524,6 +581,56 @@ function powershell(commands, options = {}) {
 
 function user32Type() {
   return 'Add-Type -Namespace Input -Name Native -MemberDefinition "[DllImport(`\"user32.dll`\")] public static extern bool SetCursorPos(int X, int Y); [DllImport(`\"user32.dll`\")] public static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);"';
+}
+
+function displaySettingsType() {
+  return `Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class DisplaySettings {
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+  public struct DEVMODE {
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
+    public short dmSpecVersion;
+    public short dmDriverVersion;
+    public short dmSize;
+    public short dmDriverExtra;
+    public int dmFields;
+    public int dmPositionX;
+    public int dmPositionY;
+    public int dmDisplayOrientation;
+    public int dmDisplayFixedOutput;
+    public short dmColor;
+    public short dmDuplex;
+    public short dmYResolution;
+    public short dmTTOption;
+    public short dmCollate;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
+    public short dmLogPixels;
+    public int dmBitsPerPel;
+    public int dmPelsWidth;
+    public int dmPelsHeight;
+    public int dmDisplayFlags;
+    public int dmDisplayFrequency;
+    public int dmICMMethod;
+    public int dmICMIntent;
+    public int dmMediaType;
+    public int dmDitherType;
+    public int dmReserved1;
+    public int dmReserved2;
+    public int dmPanningWidth;
+    public int dmPanningHeight;
+  }
+  [DllImport("user32.dll", CharSet = CharSet.Ansi)]
+  public static extern int EnumDisplaySettings(string deviceName, int modeNum, ref DEVMODE devMode);
+  [DllImport("user32.dll", CharSet = CharSet.Ansi)]
+  public static extern int ChangeDisplaySettings(ref DEVMODE devMode, int flags);
+  public const int ENUM_CURRENT_SETTINGS = -1;
+  public const int CDS_UPDATEREGISTRY = 0x01;
+  public const int DISP_CHANGE_SUCCESSFUL = 0;
+  public const int DM_DISPLAYFREQUENCY = 0x400000;
+}
+"@`;
 }
 
 function clampNumber(value, min, max) {

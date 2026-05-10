@@ -63,6 +63,12 @@ Die Enrollment-BAT kann die externe Adresse direkt bekommen:
 scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
 ```
 
+Fuer einen stillen Hintergrundstart gibt es zusaetzlich:
+
+```powershell
+scripts\enroll-agent-background.bat wss://deine-domain.example/ws change-this-enrollment-token "Display 01"
+```
+
 Die BAT funktioniert auch allein, wenn der Rest des Repos nicht daneben liegt. In diesem Fall installiert sie bei Bedarf Node.js LTS ueber `winget`, laedt die Projektdateien sichtbar von GitHub nach `%LOCALAPPDATA%\CMS-Computer-Managing-System`, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
 Die wichtigsten Standardwerte stehen ganz oben in der BAT im `CONFIG`-Block und koennen dort direkt angepasst werden.
 
@@ -88,7 +94,7 @@ Fuer 24/7-Display-PCs gibt es zusaetzlich einen Display-Modus:
 scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws change-this-enrollment-token "Display 01"
 ```
 
-Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon minimiert und haelt den Task wartend, damit Windows ihn bei einem Exit erneut starten kann. Logs landen standardmaessig in `%ProgramData%\CMS-Computer-Managing-System\logs\agent.log`. Der Modus ist fuer autorisierte Anzeige-/Kiosk-PCs gedacht und nicht versteckt.
+Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon versteckt im Hintergrund und haelt den Task wartend, damit Windows ihn bei einem Exit erneut starten kann. Logs landen standardmaessig in `%ProgramData%\CMS-Computer-Managing-System\logs\agent.log`. Der Modus ist fuer autorisierte Anzeige-/Kiosk-PCs gedacht.
 
 Im globalen oder Display-Modus installiert die BAT Node.js LTS per `winget --scope machine`, wenn Node/npm fehlen. Dafuer ist ein Administrator-Terminal noetig.
 Wenn `--install-global` oder `--install-display` aus einem temporaeren Ordner gestartet wird, kopiert die BAT die Projektdateien zuerst nach `%ProgramData%\CMS-Computer-Managing-System`, damit der geplante Task spaeter nicht von diesem temporaeren Pfad abhaengt.
@@ -132,9 +138,9 @@ npm run dev:agent
 
 ## Windows Enrollment per BAT
 
-Passe in `scripts\enroll-agent.bat` die Werte `CMS_SERVER_URL`, `CMS_ENROLLMENT_TOKEN` und `CMS_DEVICE_NAME` an und fuehre die Datei auf dem Zielgeraet sichtbar als Admin/User aus.
+Passe in `scripts\enroll-agent.bat` oder `scripts\enroll-agent-background.bat` die Werte `CMS_SERVER_URL`, `CMS_ENROLLMENT_TOKEN` und `CMS_DEVICE_NAME` an und fuehre die passende Datei auf dem Zielgeraet aus.
 
-Im Controller kann ueber `BAT Autostart` ein normaler Shortcut zu `scripts\enroll-agent.bat` im Windows-Autostart-Ordner des angemeldeten Users angelegt werden.
+Im Controller kann ueber `BAT Autostart` ein minimierter Shortcut zu `scripts\enroll-agent-background.bat` im Windows-Autostart-Ordner des angemeldeten Users angelegt werden.
 
 ## Erlaubte Commands
 
@@ -146,7 +152,7 @@ Der Agent erlaubt aktuell nur diese Commands:
 - `systeminfo`
 - `tasklist`
 - `screen:snapshot` nur wenn `CMS_ALLOW_SCREEN_VIEW=1` gesetzt ist
-- `startup:install` legt einen sichtbaren Windows-Autostart-Shortcut fuer `scripts\enroll-agent.bat` an
+- `startup:install` legt einen minimierten Windows-Autostart-Shortcut fuer `scripts\enroll-agent-background.bat` an
 - `input:*` nur wenn `CMS_ALLOW_REMOTE_CONTROL=1` gesetzt ist
 - `shell:run` nur wenn `CMS_ALLOW_SHELL=1` gesetzt ist
 

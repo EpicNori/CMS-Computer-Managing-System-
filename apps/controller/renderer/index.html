@@ -14,12 +14,6 @@
           <h1>Computer Managing System</h1>
           <p>Device console</p>
         </div>
-        <nav class="mode-tabs" aria-label="Module">
-          <button class="tab active" type="button">Overview</button>
-          <button class="tab" type="button">Remote</button>
-          <button class="tab" type="button">Tools</button>
-          <button class="tab" type="button">Audit</button>
-        </nav>
         <div class="connection">
           <span id="connection-dot" class="dot offline"></span>
           <div>
@@ -126,6 +120,28 @@
                 <option value="startup:install">BAT in Autostart</option>
               </select>
               <button id="run-command" type="button">Run</button>
+            </div>
+          </section>
+
+          <section class="tool-panel">
+            <div class="pane-title slim">
+              <div>
+                <span class="overline">Display</span>
+                <h3>Refresh Rate</h3>
+              </div>
+            </div>
+            <label for="refresh-rate">Hz</label>
+            <div class="inline-control">
+              <select id="refresh-rate">
+                <option value="60">60 Hz</option>
+                <option value="75">75 Hz</option>
+                <option value="90">90 Hz</option>
+                <option value="120">120 Hz</option>
+                <option value="144">144 Hz</option>
+                <option value="165">165 Hz</option>
+                <option value="240">240 Hz</option>
+              </select>
+              <button id="set-refresh-rate" type="button">Set</button>
             </div>
           </section>
 

@@ -21,10 +21,12 @@ REM   enroll-agent.bat ws://SERVER-IP:4377/ws enrollment-token "Device Name"
 REM   enroll-agent.bat wss://your-domain.example/ws enrollment-token "Device Name"
 REM   enroll-agent.bat --install-global wss://your-domain.example/ws enrollment-token "Device Name"
 REM   enroll-agent.bat --install-display wss://your-domain.example/ws enrollment-token "Display 01"
+REM   enroll-agent.bat --background-run wss://your-domain.example/ws enrollment-token "Display 01"
 REM Defaults are used when arguments are omitted.
 set "CMS_INSTALL_GLOBAL=0"
 set "CMS_DISPLAY_MODE=0"
 set "CMS_DISPLAY_RUN=0"
+set "CMS_BACKGROUND_RUN=0"
 if /i "%~1"=="--install-global" (
   set "CMS_INSTALL_GLOBAL=1"
   shift
@@ -37,6 +39,10 @@ if /i "%~1"=="--install-display" (
 if /i "%~1"=="--display-run" (
   set "CMS_DISPLAY_MODE=1"
   set "CMS_DISPLAY_RUN=1"
+  shift
+)
+if /i "%~1"=="--background-run" (
+  set "CMS_BACKGROUND_RUN=1"
   shift
 )
 
@@ -117,7 +123,14 @@ if "%CMS_INSTALL_GLOBAL%"=="1" (
   if errorlevel 1 exit /b 1
 )
 
-echo Starting visible CMS agent for "%CMS_DEVICE_NAME%" connected to "%CMS_SERVER_URL%"...
+if "%CMS_BACKGROUND_RUN%"=="1" (
+  if not exist "%CMS_LOG_DIR%" mkdir "%CMS_LOG_DIR%"
+  set "CMS_HIDE_WINDOWS=1"
+  echo Starting background CMS agent for "%CMS_DEVICE_NAME%" connected to "%CMS_SERVER_URL%"...
+  echo Logs: "%CMS_LOG_DIR%\agent.log"
+) else (
+  echo Starting visible CMS agent for "%CMS_DEVICE_NAME%" connected to "%CMS_SERVER_URL%"...
+)
 node apps\agent\index.js
 
 endlocal
@@ -196,20 +209,31 @@ if not exist "%CMS_TASK_BAT%" (
   exit /b 1
 )
 
+set "CMS_BACKGROUND_BAT=%CMS_ROOT%\scripts\enroll-agent-background.bat"
+if "%CMS_DISPLAY_MODE%"=="1" if not exist "%CMS_BACKGROUND_BAT%" (
+  echo Cannot install display task because "%CMS_BACKGROUND_BAT%" was not found.
+  exit /b 1
+)
+
 if not exist "%CMS_LOG_DIR%" mkdir "%CMS_LOG_DIR%"
 
 if "%CMS_DISPLAY_MODE%"=="1" (
   set "CMS_TASK_NAME=CMS Display Agent"
-  set "CMS_TASK_DESC=Starts the visible CMS agent for 24/7 authorized display PCs when any user logs on."
+  set "CMS_TASK_DESC=Starts the hidden CMS agent for 24/7 authorized display PCs when any user logs on."
 ) else (
   set "CMS_TASK_NAME=CMS Visible Agent"
   set "CMS_TASK_DESC=Starts the visible CMS agent when any user logs on."
 )
 
-echo Installing global visible logon task "%CMS_TASK_NAME%"...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$taskName=$env:CMS_TASK_NAME; $argPrefix=if ($env:CMS_DISPLAY_MODE -eq '1') { '--display-run ' } else { '' }; $agentArgs=$argPrefix + ('\"{0}\" \"{1}\" \"{2}\"' -f $env:CMS_SERVER_URL,$env:CMS_ENROLLMENT_TOKEN,$env:CMS_DEVICE_NAME); $cmd='/c start \"CMS Visible Agent\" /min /wait \"{0}\" {1} ^>^> \"{2}\agent.log\" 2^>^&1' -f $env:CMS_TASK_BAT,$agentArgs,$env:CMS_LOG_DIR; $action=New-ScheduledTaskAction -Execute $env:ComSpec -Argument $cmd -WorkingDirectory $env:CMS_ROOT; $trigger=New-ScheduledTaskTrigger -AtLogOn; $principal=New-ScheduledTaskPrincipal -GroupId 'BUILTIN\Users' -RunLevel LeastPrivilege; $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 0); Register-ScheduledTask -TaskPath '\CMS\' -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description $env:CMS_TASK_DESC -Force | Out-Null"
+if "%CMS_DISPLAY_MODE%"=="1" (
+  echo Installing global hidden logon task "%CMS_TASK_NAME%"...
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$taskName=$env:CMS_TASK_NAME; $agentArgs='--hidden-run --display-run \"{0}\" \"{1}\" \"{2}\"' -f $env:CMS_SERVER_URL,$env:CMS_ENROLLMENT_TOKEN,$env:CMS_DEVICE_NAME; $command='Set-Location -LiteralPath ''{0}''; & ''{1}'' {2}' -f $env:CMS_ROOT,$env:CMS_BACKGROUND_BAT,$agentArgs; $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command ' + $command); $trigger=New-ScheduledTaskTrigger -AtLogOn; $principal=New-ScheduledTaskPrincipal -GroupId 'BUILTIN\Users' -RunLevel LeastPrivilege; $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 0); Register-ScheduledTask -TaskPath '\CMS\' -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description $env:CMS_TASK_DESC -Force | Out-Null"
+) else (
+  echo Installing global visible logon task "%CMS_TASK_NAME%"...
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$taskName=$env:CMS_TASK_NAME; $agentArgs='\"{0}\" \"{1}\" \"{2}\"' -f $env:CMS_SERVER_URL,$env:CMS_ENROLLMENT_TOKEN,$env:CMS_DEVICE_NAME; $cmd='/c start \"CMS Visible Agent\" /min /wait \"{0}\" {1} ^>^> \"{2}\agent.log\" 2^>^&1' -f $env:CMS_TASK_BAT,$agentArgs,$env:CMS_LOG_DIR; $action=New-ScheduledTaskAction -Execute $env:ComSpec -Argument $cmd -WorkingDirectory $env:CMS_ROOT; $trigger=New-ScheduledTaskTrigger -AtLogOn; $principal=New-ScheduledTaskPrincipal -GroupId 'BUILTIN\Users' -RunLevel LeastPrivilege; $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 0); Register-ScheduledTask -TaskPath '\CMS\' -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description $env:CMS_TASK_DESC -Force | Out-Null"
+)
 if errorlevel 1 (
-  echo Failed to install global visible logon task.
+  echo Failed to install global logon task.
   exit /b 1
 )
 
