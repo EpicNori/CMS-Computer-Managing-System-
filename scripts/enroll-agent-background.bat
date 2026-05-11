@@ -8,7 +8,9 @@ if /i "%~1"=="--hidden-run" (
 
 set "CMS_SELF=%~f0"
 set "CMS_SELF_ARGS=%*"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Start-Process -WindowStyle Hidden -FilePath $env:ComSpec -ArgumentList @('/d','/c','""' + $env:CMS_SELF + '"" --hidden-run ' + $env:CMS_SELF_ARGS)"
+for %%I in ("%~dp0..") do set "CMS_LAUNCH_WORK=%%~fI"
+set "CMS_LAUNCH_CMD=call ""%CMS_SELF%"" --hidden-run %CMS_SELF_ARGS%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Start-Process -WindowStyle Hidden -WorkingDirectory $env:CMS_LAUNCH_WORK -FilePath $env:ComSpec -ArgumentList @('/d','/c',$env:CMS_LAUNCH_CMD)"
 if errorlevel 1 (
   echo Failed to start the hidden CMS background agent.
   exit /b 1
