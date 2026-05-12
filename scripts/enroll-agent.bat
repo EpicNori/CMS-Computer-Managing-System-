@@ -12,6 +12,7 @@ set "CMS_DEFAULT_ALLOW_SCREEN_VIEW=1"
 set "CMS_DEFAULT_ALLOW_REMOTE_CONTROL=1"
 set "CMS_DEFAULT_ALLOW_SHELL=1"
 set "CMS_DEFAULT_REPO_ZIP_URL=https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
+set "CMS_DEFAULT_REPO_ZIP_FALLBACK_URL=https://codeload.github.com/EpicNori/CMS-Computer-Managing-System-/zip/refs/heads/main"
 set "CMS_DEFAULT_USER_INSTALL_DIR=%LOCALAPPDATA%\CMS-Computer-Managing-System"
 set "CMS_DEFAULT_MACHINE_INSTALL_DIR=%ProgramData%\CMS-Computer-Managing-System"
 REM -------------------- END CONFIG --------------------
@@ -60,6 +61,8 @@ set "CMS_ALLOW_REMOTE_CONTROL=%CMS_DEFAULT_ALLOW_REMOTE_CONTROL%"
 set "CMS_ALLOW_SHELL=%CMS_DEFAULT_ALLOW_SHELL%"
 set "CMS_REPO_ZIP_URL=%CMS_REPO_ZIP_URL%"
 if "%CMS_REPO_ZIP_URL%"=="" set "CMS_REPO_ZIP_URL=%CMS_DEFAULT_REPO_ZIP_URL%"
+set "CMS_REPO_ZIP_FALLBACK_URL=%CMS_REPO_ZIP_FALLBACK_URL%"
+if "%CMS_REPO_ZIP_FALLBACK_URL%"=="" set "CMS_REPO_ZIP_FALLBACK_URL=%CMS_DEFAULT_REPO_ZIP_FALLBACK_URL%"
 set "CMS_INSTALL_DIR=%CMS_INSTALL_DIR%"
 if "%CMS_INSTALL_DIR%"=="" if "%CMS_INSTALL_GLOBAL%"=="1" set "CMS_INSTALL_DIR=%CMS_DEFAULT_MACHINE_INSTALL_DIR%"
 if "%CMS_INSTALL_DIR%"=="" set "CMS_INSTALL_DIR=%CMS_DEFAULT_USER_INSTALL_DIR%"
@@ -84,11 +87,8 @@ if not exist "%CMS_INSTALL_DIR%" mkdir "%CMS_INSTALL_DIR%"
 set "CMS_BOOTSTRAP_ZIP=%TEMP%\cms-agent-%RANDOM%-%RANDOM%.zip"
 set "CMS_BOOTSTRAP_EXTRACT=%TEMP%\cms-agent-%RANDOM%-%RANDOM%"
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri $env:CMS_REPO_ZIP_URL -OutFile $env:CMS_BOOTSTRAP_ZIP"
-if errorlevel 1 (
-  echo Failed to download CMS project files from "%CMS_REPO_ZIP_URL%".
-  call :fail 1
-)
+call :download_repo_zip
+if errorlevel 1 call :fail 1
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath $env:CMS_BOOTSTRAP_ZIP -DestinationPath $env:CMS_BOOTSTRAP_EXTRACT -Force"
 if errorlevel 1 (
@@ -185,6 +185,29 @@ exit /b 0
 :refresh_path
 for /f "usebackq tokens=* delims=" %%A in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')"`) do set "PATH=%%A"
 exit /b 0
+
+:download_repo_zip
+echo Downloading CMS project files from "%CMS_REPO_ZIP_URL%"...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; try { Invoke-WebRequest -Uri $env:CMS_REPO_ZIP_URL -OutFile $env:CMS_BOOTSTRAP_ZIP -UseBasicParsing; exit 0 } catch { exit 1 }"
+if not errorlevel 1 exit /b 0
+
+if /i "%CMS_REPO_ZIP_FALLBACK_URL%"=="%CMS_REPO_ZIP_URL%" goto download_failed
+
+echo Primary ZIP URL failed. Trying fallback "%CMS_REPO_ZIP_FALLBACK_URL%"...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$ProgressPreference='SilentlyContinue'; try { Invoke-WebRequest -Uri $env:CMS_REPO_ZIP_FALLBACK_URL -OutFile $env:CMS_BOOTSTRAP_ZIP -UseBasicParsing; exit 0 } catch { exit 1 }"
+if not errorlevel 1 exit /b 0
+
+:download_failed
+echo Failed to download CMS project files.
+echo Primary URL: "%CMS_REPO_ZIP_URL%"
+if not "%CMS_REPO_ZIP_FALLBACK_URL%"=="" echo Fallback URL: "%CMS_REPO_ZIP_FALLBACK_URL%"
+echo.
+echo If this BAT is running on another PC and the repository is private, GitHub usually returns 404.
+echo Fix one of these:
+echo   1. Put the full CMS project next to this BAT.
+echo   2. Set CMS_REPO_ZIP_URL to a public ZIP or release asset.
+echo   3. Make the repository archive publicly downloadable.
+exit /b 1
 
 :ensure_stable_install
 if /i "%CMS_ROOT%"=="%CMS_INSTALL_DIR%" exit /b 0
