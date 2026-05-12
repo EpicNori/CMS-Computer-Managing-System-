@@ -10,6 +10,10 @@
     "dev:agent": "node apps/agent/index.js",
     "dev:controller": "electron apps/controller/main.js",
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:controller\"",
+    "install:controller": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\install-cms.ps1 -Mode Controller",
+    "install:agent-visible": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\install-cms.ps1 -Mode AgentVisible",
+    "install:agent-background": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\install-cms.ps1 -Mode AgentBackground",
+    "run:controller": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-controller.ps1",
     "check": "node --check apps/server/index.js && node --check apps/agent/index.js && node --check apps/controller/main.js && node --check apps/controller/renderer/renderer.js && node --check tests/integration.test.js",
     "test": "node --test tests/integration.test.js"
   },
