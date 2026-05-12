@@ -2,10 +2,12 @@
 setlocal
 
 if /i "%~1"=="--hidden-run" (
+  set "CMS_PAUSE_ON_ERROR=0"
   shift
   goto begin
 )
 
+set "CMS_PAUSE_ON_ERROR=1"
 set "CMS_SELF=%~f0"
 set "CMS_SELF_ARGS=%*"
 for %%I in ("%~dp0..") do set "CMS_LAUNCH_WORK=%%~fI"
@@ -13,7 +15,7 @@ set "CMS_LAUNCH_CMD=call ""%CMS_SELF%"" --hidden-run %CMS_SELF_ARGS%"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Start-Process -WindowStyle Hidden -WorkingDirectory $env:CMS_LAUNCH_WORK -FilePath $env:ComSpec -ArgumentList @('/d','/c',$env:CMS_LAUNCH_CMD)"
 if errorlevel 1 (
   echo Failed to start the hidden CMS background agent.
-  exit /b 1
+  call :fail 1
 )
 exit /b 0
 
@@ -75,49 +77,51 @@ if "%CMS_INSTALL_DIR%"=="" set "CMS_INSTALL_DIR=%CMS_DEFAULT_USER_INSTALL_DIR%"
 set "CMS_LOG_DIR=%CMS_LOG_DIR%"
 if "%CMS_LOG_DIR%"=="" set "CMS_LOG_DIR=%CMS_INSTALL_DIR%\logs"
 
-set "CMS_ROOT=%~dp0\.."
+pushd "%~dp0.." >nul
+set "CMS_ROOT=%CD%"
+popd >nul
 if exist "%CMS_ROOT%\apps\agent\index.js" goto run_agent
 
 set "CMS_ROOT=%CMS_INSTALL_DIR%"
 if exist "%CMS_ROOT%\apps\agent\index.js" goto run_agent
 
 call :ensure_node
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 if not exist "%CMS_INSTALL_DIR%" mkdir "%CMS_INSTALL_DIR%"
 set "CMS_BOOTSTRAP_ZIP=%TEMP%\cms-agent-bg-%RANDOM%-%RANDOM%.zip"
 set "CMS_BOOTSTRAP_EXTRACT=%TEMP%\cms-agent-bg-%RANDOM%-%RANDOM%"
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri $env:CMS_REPO_ZIP_URL -OutFile $env:CMS_BOOTSTRAP_ZIP"
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath $env:CMS_BOOTSTRAP_ZIP -DestinationPath $env:CMS_BOOTSTRAP_EXTRACT -Force"
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$source=Get-ChildItem -LiteralPath $env:CMS_BOOTSTRAP_EXTRACT -Directory | Select-Object -First 1; if (-not $source) { exit 1 }; if (Test-Path -LiteralPath $env:CMS_INSTALL_DIR) { Remove-Item -LiteralPath $env:CMS_INSTALL_DIR -Recurse -Force }; Move-Item -LiteralPath $source.FullName -Destination $env:CMS_INSTALL_DIR"
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 del "%CMS_BOOTSTRAP_ZIP%" >nul 2>nul
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item -LiteralPath $env:CMS_BOOTSTRAP_EXTRACT -Recurse -Force" >nul 2>nul
 
 :run_agent
 if "%CMS_INSTALL_GLOBAL%"=="1" call :ensure_stable_install
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 cd /d "%CMS_ROOT%"
 call :ensure_node
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 if not exist "node_modules" (
   npm install
-  if errorlevel 1 exit /b 1
+  if errorlevel 1 call :fail 1
 )
 
 if not exist "%CMS_LOG_DIR%" mkdir "%CMS_LOG_DIR%"
 
 if "%CMS_INSTALL_GLOBAL%"=="1" (
   call :install_global_task
-  if errorlevel 1 exit /b 1
+  if errorlevel 1 call :fail 1
 )
 
 set "CMS_HIDE_WINDOWS=1"
@@ -134,21 +138,21 @@ if not errorlevel 1 (
 )
 
 where winget >nul 2>nul
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 set "CMS_WINGET_SCOPE=user"
 if "%CMS_INSTALL_GLOBAL%"=="1" set "CMS_WINGET_SCOPE=machine"
 
 winget install --id OpenJS.NodeJS.LTS --exact --source winget --silent --accept-package-agreements --accept-source-agreements --scope %CMS_WINGET_SCOPE%
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 call :refresh_path
 
 where node >nul 2>nul
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 where npm >nul 2>nul
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 exit /b 0
 
@@ -161,17 +165,17 @@ if /i "%CMS_ROOT%"=="%CMS_INSTALL_DIR%" exit /b 0
 
 if not exist "%CMS_INSTALL_DIR%" mkdir "%CMS_INSTALL_DIR%"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$source=(Resolve-Path -LiteralPath $env:CMS_ROOT).Path; $target=$env:CMS_INSTALL_DIR; if ($source.TrimEnd('\') -ieq $target.TrimEnd('\')) { exit 0 }; $exclude=@('.git','node_modules','.env'); Get-ChildItem -LiteralPath $source -Force | Where-Object { $exclude -notcontains $_.Name } | ForEach-Object { $dest=Join-Path $target $_.Name; if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }; Copy-Item -LiteralPath $_.FullName -Destination $dest -Recurse -Force }"
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 set "CMS_ROOT=%CMS_INSTALL_DIR%"
 exit /b 0
 
 :install_global_task
 net session >nul 2>nul
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 set "CMS_TASK_BAT=%CMS_ROOT%\scripts\enroll-agent-background.bat"
-if not exist "%CMS_TASK_BAT%" exit /b 1
+if not exist "%CMS_TASK_BAT%" call :fail 1
 
 if "%CMS_DISPLAY_MODE%"=="1" (
   set "CMS_TASK_NAME=CMS Display Agent"
@@ -182,6 +186,12 @@ if "%CMS_DISPLAY_MODE%"=="1" (
 )
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$taskName=$env:CMS_TASK_NAME; $agentArgs='--hidden-run \"{0}\" \"{1}\" \"{2}\"' -f $env:CMS_SERVER_URL,$env:CMS_ENROLLMENT_TOKEN,$env:CMS_DEVICE_NAME; if ($env:CMS_DISPLAY_MODE -eq '1') { $agentArgs='--hidden-run --display-run \"{0}\" \"{1}\" \"{2}\"' -f $env:CMS_SERVER_URL,$env:CMS_ENROLLMENT_TOKEN,$env:CMS_DEVICE_NAME }; $command='Set-Location -LiteralPath ''{0}''; & ''{1}'' {2}' -f $env:CMS_ROOT,$env:CMS_TASK_BAT,$agentArgs; $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command ' + $command); $trigger=New-ScheduledTaskTrigger -AtLogOn; $principal=New-ScheduledTaskPrincipal -GroupId 'BUILTIN\Users' -RunLevel LeastPrivilege; $settings=New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Days 0); Register-ScheduledTask -TaskPath '\CMS\' -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description $env:CMS_TASK_DESC -Force | Out-Null"
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 exit /b 0
+
+:fail
+set "CMS_FAIL_CODE=%~1"
+if "%CMS_FAIL_CODE%"=="" set "CMS_FAIL_CODE=1"
+if not "%CMS_PAUSE_ON_ERROR%"=="0" pause
+exit /b %CMS_FAIL_CODE%

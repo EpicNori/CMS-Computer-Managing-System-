@@ -27,6 +27,7 @@ set "CMS_INSTALL_GLOBAL=0"
 set "CMS_DISPLAY_MODE=0"
 set "CMS_DISPLAY_RUN=0"
 set "CMS_BACKGROUND_RUN=0"
+set "CMS_PAUSE_ON_ERROR=1"
 if /i "%~1"=="--install-global" (
   set "CMS_INSTALL_GLOBAL=1"
   shift
@@ -43,6 +44,7 @@ if /i "%~1"=="--display-run" (
 )
 if /i "%~1"=="--background-run" (
   set "CMS_BACKGROUND_RUN=1"
+  set "CMS_PAUSE_ON_ERROR=0"
   shift
 )
 
@@ -64,7 +66,9 @@ if "%CMS_INSTALL_DIR%"=="" set "CMS_INSTALL_DIR=%CMS_DEFAULT_USER_INSTALL_DIR%"
 set "CMS_LOG_DIR=%CMS_LOG_DIR%"
 if "%CMS_LOG_DIR%"=="" set "CMS_LOG_DIR=%CMS_INSTALL_DIR%\logs"
 
-set "CMS_ROOT=%~dp0\.."
+pushd "%~dp0.." >nul
+set "CMS_ROOT=%CD%"
+popd >nul
 if exist "%CMS_ROOT%\apps\agent\index.js" goto run_agent
 
 set "CMS_ROOT=%CMS_INSTALL_DIR%"
@@ -74,7 +78,7 @@ echo CMS project files were not found next to this BAT.
 echo Downloading visible CMS agent files to "%CMS_INSTALL_DIR%"...
 
 call :ensure_node
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 if not exist "%CMS_INSTALL_DIR%" mkdir "%CMS_INSTALL_DIR%"
 set "CMS_BOOTSTRAP_ZIP=%TEMP%\cms-agent-%RANDOM%-%RANDOM%.zip"
@@ -83,19 +87,19 @@ set "CMS_BOOTSTRAP_EXTRACT=%TEMP%\cms-agent-%RANDOM%-%RANDOM%"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri $env:CMS_REPO_ZIP_URL -OutFile $env:CMS_BOOTSTRAP_ZIP"
 if errorlevel 1 (
   echo Failed to download CMS project files from "%CMS_REPO_ZIP_URL%".
-  exit /b 1
+  call :fail 1
 )
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Expand-Archive -LiteralPath $env:CMS_BOOTSTRAP_ZIP -DestinationPath $env:CMS_BOOTSTRAP_EXTRACT -Force"
 if errorlevel 1 (
   echo Failed to extract CMS project files.
-  exit /b 1
+  call :fail 1
 )
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$source=Get-ChildItem -LiteralPath $env:CMS_BOOTSTRAP_EXTRACT -Directory | Select-Object -First 1; if (-not $source) { exit 1 }; if (Test-Path -LiteralPath $env:CMS_INSTALL_DIR) { Remove-Item -LiteralPath $env:CMS_INSTALL_DIR -Recurse -Force }; Move-Item -LiteralPath $source.FullName -Destination $env:CMS_INSTALL_DIR"
 if errorlevel 1 (
   echo Failed to install CMS project files.
-  exit /b 1
+  call :fail 1
 )
 
 del "%CMS_BOOTSTRAP_ZIP%" >nul 2>nul
@@ -103,24 +107,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item -Literal
 
 :run_agent
 if "%CMS_INSTALL_GLOBAL%"=="1" call :ensure_stable_install
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 cd /d "%CMS_ROOT%"
 call :ensure_node
-if errorlevel 1 exit /b 1
+if errorlevel 1 call :fail 1
 
 if not exist "node_modules" (
   echo Installing CMS dependencies. This can take a minute...
   npm install
   if errorlevel 1 (
     echo Failed to install CMS dependencies.
-    exit /b 1
+    call :fail 1
   )
 )
 
 if "%CMS_INSTALL_GLOBAL%"=="1" (
   call :install_global_task
-  if errorlevel 1 exit /b 1
+  if errorlevel 1 call :fail 1
 )
 
 if "%CMS_BACKGROUND_RUN%"=="1" (
@@ -148,7 +152,7 @@ where winget >nul 2>nul
 if errorlevel 1 (
   echo Windows Package Manager winget was not found.
   echo Install Node.js LTS manually from https://nodejs.org/ and run this BAT again.
-  exit /b 1
+  call :fail 1
 )
 
 set "CMS_WINGET_SCOPE=user"
@@ -157,7 +161,7 @@ if "%CMS_INSTALL_GLOBAL%"=="1" set "CMS_WINGET_SCOPE=machine"
 winget install --id OpenJS.NodeJS.LTS --exact --source winget --silent --accept-package-agreements --accept-source-agreements --scope %CMS_WINGET_SCOPE%
 if errorlevel 1 (
   echo Failed to install Node.js LTS with winget.
-  exit /b 1
+  call :fail 1
 )
 
 call :refresh_path
@@ -166,14 +170,14 @@ where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js was installed, but node.exe is not available in PATH yet.
   echo Close and reopen this terminal, then run this BAT again.
-  exit /b 1
+  call :fail 1
 )
 
 where npm >nul 2>nul
 if errorlevel 1 (
   echo Node.js was installed, but npm is not available in PATH yet.
   echo Close and reopen this terminal, then run this BAT again.
-  exit /b 1
+  call :fail 1
 )
 
 exit /b 0
@@ -190,7 +194,7 @@ if not exist "%CMS_INSTALL_DIR%" mkdir "%CMS_INSTALL_DIR%"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$source=(Resolve-Path -LiteralPath $env:CMS_ROOT).Path; $target=$env:CMS_INSTALL_DIR; if ($source.TrimEnd('\') -ieq $target.TrimEnd('\')) { exit 0 }; $exclude=@('.git','node_modules','.env'); Get-ChildItem -LiteralPath $source -Force | Where-Object { $exclude -notcontains $_.Name } | ForEach-Object { $dest=Join-Path $target $_.Name; if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }; Copy-Item -LiteralPath $_.FullName -Destination $dest -Recurse -Force }"
 if errorlevel 1 (
   echo Failed to copy CMS files to "%CMS_INSTALL_DIR%".
-  exit /b 1
+  call :fail 1
 )
 
 set "CMS_ROOT=%CMS_INSTALL_DIR%"
@@ -200,19 +204,19 @@ exit /b 0
 net session >nul 2>nul
 if errorlevel 1 (
   echo Global install requires an elevated Administrator command prompt.
-  exit /b 1
+  call :fail 1
 )
 
 set "CMS_TASK_BAT=%CMS_ROOT%\scripts\enroll-agent.bat"
 if not exist "%CMS_TASK_BAT%" (
   echo Cannot install global task because "%CMS_TASK_BAT%" was not found.
-  exit /b 1
+  call :fail 1
 )
 
 set "CMS_BACKGROUND_BAT=%CMS_ROOT%\scripts\enroll-agent-background.bat"
 if "%CMS_DISPLAY_MODE%"=="1" if not exist "%CMS_BACKGROUND_BAT%" (
   echo Cannot install display task because "%CMS_BACKGROUND_BAT%" was not found.
-  exit /b 1
+  call :fail 1
 )
 
 if not exist "%CMS_LOG_DIR%" mkdir "%CMS_LOG_DIR%"
@@ -234,9 +238,15 @@ if "%CMS_DISPLAY_MODE%"=="1" (
 )
 if errorlevel 1 (
   echo Failed to install global logon task.
-  exit /b 1
+  call :fail 1
 )
 
 echo Global task installed. It will start for any user at logon.
 echo Logs: "%CMS_LOG_DIR%\agent.log"
 exit /b 0
+
+:fail
+set "CMS_FAIL_CODE=%~1"
+if "%CMS_FAIL_CODE%"=="" set "CMS_FAIL_CODE=1"
+if not "%CMS_PAUSE_ON_ERROR%"=="0" pause
+exit /b %CMS_FAIL_CODE%
