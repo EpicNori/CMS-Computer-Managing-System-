@@ -3,8 +3,11 @@ REM Defaults are for local demos only. For real devices, edit SERVER_URL,
 REM ENROLLMENT_TOKEN, and remove -AllowInsecureDefaultTokens below.
 REM This script writes a visible autonomous PowerShell launcher and runs it.
 REM It does not bypass UAC, hide windows, or install persistence.
+REM If typed output is garbled, set the Flipper BadUSB keyboard layout to the
+REM target PC layout and increase DEFAULT_DELAY below.
 
 ID 1234:5678 Flipper CMS Agent
+DEFAULT_DELAY 120
 DELAY 1000
 GUI r
 DELAY 700
