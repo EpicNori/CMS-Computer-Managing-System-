@@ -39,7 +39,7 @@ if not exist "%CMS_PS%" (
 set "CMS_SERVER_URL=%~1"
 if "%CMS_SERVER_URL%"=="" set "CMS_SERVER_URL=ws://localhost:4377/ws"
 set "CMS_ENROLLMENT_TOKEN=%~2"
-if "%CMS_ENROLLMENT_TOKEN%"=="" set "CMS_ENROLLMENT_TOKEN=change-this-enrollment-token"
+if "%CMS_ENROLLMENT_TOKEN%"=="" set "CMS_ENROLLMENT_TOKEN=change-this-cms-token"
 set "CMS_DEVICE_NAME=%~3"
 if "%CMS_DEVICE_NAME%"=="" set "CMS_DEVICE_NAME=%COMPUTERNAME%"
 

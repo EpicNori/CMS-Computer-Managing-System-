@@ -61,13 +61,13 @@ Damit ein PC aus einem anderen Internet/anderen Standort verbindet, muss der Coo
 Die Enrollment-BAT kann die externe Adresse direkt bekommen:
 
 ```powershell
-scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
+scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-cms-token "Office PC"
 ```
 
 Fuer einen stillen Hintergrundstart gibt es zusaetzlich:
 
 ```powershell
-scripts\enroll-agent-background.bat wss://deine-domain.example/ws change-this-enrollment-token "Display 01"
+scripts\enroll-agent-background.bat wss://deine-domain.example/ws change-this-cms-token "Display 01"
 ```
 
 Die BATs sind nur noch kleine Wrapper um `scripts\run-agent.ps1`. Fuer Bootstrap/Download auf einem frischen Zielgeraet nutze `scripts\install-cms.ps1`; dieser Installer installiert bei Bedarf Node.js LTS ueber `winget`, kopiert oder laedt die Projektdateien, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
@@ -78,13 +78,13 @@ Optional koennen Downloadquelle und Zielordner vorher gesetzt werden:
 ```powershell
 $env:CMS_REPO_ZIP_URL="https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
 $env:CMS_INSTALL_DIR="$env:LOCALAPPDATA\CMS-Computer-Managing-System"
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode AgentVisible -ServerUrl wss://deine-domain.example/ws -EnrollmentToken change-this-enrollment-token -DeviceName "Office PC"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode AgentVisible -ServerUrl wss://deine-domain.example/ws -EnrollmentToken change-this-cms-token -DeviceName "Office PC"
 ```
 
 Fuer eine machine-weite Installation kann die BAT als Administrator mit `--install-global` gestartet werden:
 
 ```powershell
-scripts\enroll-agent.bat --install-global wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
+scripts\enroll-agent.bat --install-global wss://deine-domain.example/ws change-this-cms-token "Office PC"
 ```
 
 Das legt einen sichtbaren geplanten Task `\CMS\CMS Visible Agent` an, der den Agent fuer jeden angemeldeten User startet. Das ist absichtlich kein klassischer Windows-Service: Services laufen in Session 0 und koennen den sichtbaren Desktop normalerweise nicht fuer Screen/Input erreichen.
@@ -92,7 +92,7 @@ Das legt einen sichtbaren geplanten Task `\CMS\CMS Visible Agent` an, der den Ag
 Fuer 24/7-Display-PCs gibt es zusaetzlich einen Display-Modus:
 
 ```powershell
-scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws change-this-enrollment-token "Display 01"
+scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws change-this-cms-token "Display 01"
 ```
 
 Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon versteckt im Hintergrund und haelt den Task wartend, damit Windows ihn bei einem Exit erneut starten kann. Logs landen standardmaessig in `%ProgramData%\CMS-Computer-Managing-System\logs\agent.log`. Der Modus ist fuer autorisierte Anzeige-/Kiosk-PCs gedacht.
@@ -103,7 +103,7 @@ Wenn `--install-global` oder `--install-display` aus einem temporaeren Ordner ge
 Der Controller braucht seit dem Security-Hardening ebenfalls einen expliziten Admin-Token. Beim Installieren kann er direkt uebergeben werden:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode Controller -ServerUrl ws://localhost:4377/ws -AdminToken dein-langer-admin-token
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode Controller -ServerUrl ws://localhost:4377/ws -AdminToken dein-langer-cms-token
 ```
 
 Der Installer schreibt die Runtime-Werte in `.env` im Installationsordner. Fuer lokale Demos mit den Beispiel-Tokens kann `-AllowInsecureDefaultTokens` genutzt werden; fuer echte Geraete sollte das nicht verwendet werden.
@@ -153,7 +153,7 @@ Im Controller kann ueber `BAT Autostart` ein minimierter Shortcut zu `scripts\en
 
 ## Flipper Zero Enrollment
 
-Fuer autorisierte Windows-Geraete gibt es eine sichtbare BadUSB-Vorlage unter `scripts\flipper-agent-visible.txt`. Die Vorlage nutzt fuer lokale Demos standardmaessig `ws://localhost:4377/ws`, `change-this-enrollment-token` und `-AllowInsecureDefaultTokens`. Fuer echte Geraete muessen `SERVER_URL`, `ENROLLMENT_TOKEN` und optional `DEVICE_NAME` angepasst werden; entferne dann auch `-AllowInsecureDefaultTokens`. Die Vorlage oeffnet sichtbar PowerShell, zeigt eine kurze Warnung, wartet 5 Sekunden, laedt `install-cms.ps1` anonym herunter und startet den sichtbaren Agent autonom. Das ist fuer autorisierte Displays ohne Tastatur/Maus gedacht.
+Fuer autorisierte Windows-Geraete gibt es eine sichtbare BadUSB-Vorlage unter `scripts\flipper-agent-visible.txt`. Die Vorlage nutzt fuer lokale Demos standardmaessig `ws://localhost:4377/ws`, `change-this-cms-token` und `-AllowInsecureDefaultTokens`. Fuer echte Geraete muessen `SERVER_URL`, `ENROLLMENT_TOKEN` und optional `DEVICE_NAME` angepasst werden; entferne dann auch `-AllowInsecureDefaultTokens`. Die Vorlage oeffnet sichtbar PowerShell, zeigt eine kurze Warnung, wartet 5 Sekunden, laedt `install-cms.ps1` anonym herunter und startet den sichtbaren Agent autonom. Das ist fuer autorisierte Displays ohne Tastatur/Maus gedacht.
 
 Anonyme Downloads funktionieren nicht direkt aus einem privaten GitHub-Raw-Repo. Die Vorlage nutzt deshalb zuerst die GitHub-Pages-URL `https://epicnori.github.io/CMS-Computer-Managing-System-/install-cms.ps1` und danach nur als Fallback den Raw-GitHub-Link. Die Workflow-Datei `.github/workflows/publish-installer-pages.yml` veroeffentlicht ausschliesslich `scripts\install-cms.ps1` nach GitHub Pages; der Rest des Repositorys kann privat bleiben, solange GitHub Pages fuer das Repository oeffentlich verfuegbar ist. Aktiviere dafuer in GitHub `Settings -> Pages -> Source: GitHub Actions` und starte den Workflow `Publish anonymous installer`.
 

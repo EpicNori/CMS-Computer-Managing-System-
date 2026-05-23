@@ -7,7 +7,7 @@ import WebSocket from 'ws';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serverUrl = process.env.CMS_SERVER_URL || 'ws://localhost:4377/ws';
 const connectionTimeoutMs = Number(process.env.CMS_CONNECTION_TIMEOUT_MS || 15_000);
-const adminToken = readRequiredSecret('CMS_ADMIN_TOKEN', 'change-this-admin-token');
+const adminToken = readRequiredSecret('CMS_ADMIN_TOKEN', 'change-this-cms-token');
 
 let window;
 let socket;

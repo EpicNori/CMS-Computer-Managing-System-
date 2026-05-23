@@ -2,7 +2,7 @@ param(
     [ValidateSet('Visible', 'Background')]
     [string]$Mode = 'Visible',
     [string]$ServerUrl = 'ws://localhost:4377/ws',
-    [string]$EnrollmentToken = 'change-this-enrollment-token',
+    [string]$EnrollmentToken = 'change-this-cms-token',
     [string]$DeviceName = $env:COMPUTERNAME,
     [string]$ProjectRoot,
     [string]$InstallDir,

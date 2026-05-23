@@ -12,8 +12,8 @@ const configuredCommandTimeoutMs = Number(process.env.CMS_COMMAND_TIMEOUT_MS || 
 const commandTimeoutMs = Number.isFinite(configuredCommandTimeoutMs) && configuredCommandTimeoutMs > 0
   ? configuredCommandTimeoutMs
   : 90_000;
-const adminToken = readRequiredSecret('CMS_ADMIN_TOKEN', 'change-this-admin-token');
-const enrollmentToken = readRequiredSecret('CMS_ENROLLMENT_TOKEN', 'change-this-enrollment-token');
+const adminToken = readRequiredSecret('CMS_ADMIN_TOKEN', 'change-this-cms-token');
+const enrollmentToken = readRequiredSecret('CMS_ENROLLMENT_TOKEN', 'change-this-cms-token');
 
 const app = express();
 const server = http.createServer(app);

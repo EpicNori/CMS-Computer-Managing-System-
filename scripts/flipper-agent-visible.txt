@@ -17,7 +17,7 @@ STRING @'
 ENTER
 STRING $SERVER_URL='ws://localhost:4377/ws'
 ENTER
-STRING $ENROLLMENT_TOKEN='change-this-enrollment-token'
+STRING $ENROLLMENT_TOKEN='change-this-cms-token'
 ENTER
 STRING $DEVICE_NAME="$env:COMPUTERNAME"
 ENTER

@@ -2,8 +2,8 @@ param(
     [ValidateSet('Controller', 'AgentVisible', 'AgentBackground')]
     [string]$Mode = 'Controller',
     [string]$ServerUrl = 'ws://localhost:4377/ws',
-    [string]$AdminToken = $env:CMS_ADMIN_TOKEN,
-    [string]$EnrollmentToken = 'change-this-enrollment-token',
+    [string]$AdminToken = $(if ($env:CMS_ADMIN_TOKEN) { $env:CMS_ADMIN_TOKEN } else { 'change-this-cms-token' }),
+    [string]$EnrollmentToken = 'change-this-cms-token',
     [string]$DeviceName = $env:COMPUTERNAME,
     [switch]$InstallGlobal,
     [switch]$DisplayMode,
@@ -217,10 +217,10 @@ function Save-ProjectEnvironment {
     }
 
     if ($Mode -eq 'Controller') {
-        Assert-NonDefaultSecret -Name 'AdminToken' -Value $AdminToken -DefaultValue 'change-this-admin-token'
+        Assert-NonDefaultSecret -Name 'AdminToken' -Value $AdminToken -DefaultValue 'change-this-cms-token'
         $values.CMS_ADMIN_TOKEN = $AdminToken
     } else {
-        Assert-NonDefaultSecret -Name 'EnrollmentToken' -Value $EnrollmentToken -DefaultValue 'change-this-enrollment-token'
+        Assert-NonDefaultSecret -Name 'EnrollmentToken' -Value $EnrollmentToken -DefaultValue 'change-this-cms-token'
         $values.CMS_ENROLLMENT_TOKEN = $EnrollmentToken
         $values.CMS_DEVICE_NAME = $DeviceName
     }

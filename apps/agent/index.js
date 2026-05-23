@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 
 const serverUrl = process.env.CMS_SERVER_URL || 'ws://localhost:4377/ws';
 const connectionTimeoutMs = Number(process.env.CMS_CONNECTION_TIMEOUT_MS || 15_000);
-const token = readRequiredSecret('CMS_ENROLLMENT_TOKEN', 'change-this-enrollment-token');
+const token = readRequiredSecret('CMS_ENROLLMENT_TOKEN', 'change-this-cms-token');
 const deviceName = process.env.CMS_DEVICE_NAME || os.hostname();
 const deviceId = process.env.CMS_DEVICE_ID;
 const allowScreenView = ['1', 'true', 'yes'].includes(String(process.env.CMS_ALLOW_SCREEN_VIEW || '').toLowerCase());
