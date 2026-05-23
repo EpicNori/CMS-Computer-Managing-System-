@@ -1,0 +1,41 @@
+REM Flipper Zero BadUSB template for authorized CMS agent enrollment.
+REM Defaults are for local demos only. For real devices, edit SERVER_URL,
+REM ENROLLMENT_TOKEN, and remove -AllowInsecureDefaultTokens below.
+REM This script writes a visible autonomous PowerShell launcher and runs it.
+REM It does not bypass UAC, hide windows, or install persistence.
+
+ID 1234:5678 Flipper CMS Agent
+DELAY 1000
+GUI r
+DELAY 700
+STRING powershell.exe -NoProfile -ExecutionPolicy Bypass
+ENTER
+DELAY 1200
+STRING $CMS_FLIPPER_SCRIPT="$env:TEMP\cms-flipper-agent-visible.ps1"
+ENTER
+STRING @'
+ENTER
+STRING $SERVER_URL='ws://localhost:4377/ws'
+ENTER
+STRING $ENROLLMENT_TOKEN='change-this-enrollment-token'
+ENTER
+STRING $DEVICE_NAME="$env:COMPUTERNAME"
+ENTER
+STRING $INSTALLER="$env:TEMP\cms-install-cms.ps1"
+ENTER
+STRING Write-Host 'CMS authorized visible agent enrollment.' -ForegroundColor Cyan
+ENTER
+STRING Write-Host 'Autonomous display provisioning starts in 5 seconds.' -ForegroundColor Yellow
+ENTER
+STRING Write-Host 'Use only on devices you own or are allowed to manage.' -ForegroundColor Yellow
+ENTER
+STRING Start-Sleep -Seconds 5
+ENTER
+STRING Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/EpicNori/CMS-Computer-Managing-System-/main/scripts/install-cms.ps1' -OutFile $INSTALLER -UseBasicParsing
+ENTER
+STRING powershell.exe -NoProfile -ExecutionPolicy Bypass -File $INSTALLER -Mode AgentVisible -ServerUrl $SERVER_URL -EnrollmentToken $ENROLLMENT_TOKEN -DeviceName $DEVICE_NAME -AllowInsecureDefaultTokens
+ENTER
+STRING '@ | Set-Content -LiteralPath $CMS_FLIPPER_SCRIPT -Encoding ASCII
+ENTER
+STRING powershell.exe -NoProfile -ExecutionPolicy Bypass -File $CMS_FLIPPER_SCRIPT
+ENTER

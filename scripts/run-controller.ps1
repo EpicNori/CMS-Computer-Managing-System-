@@ -16,6 +16,9 @@ if (-not $ProjectRoot) {
 $ProjectRoot = [System.IO.Path]::GetFullPath($ProjectRoot)
 $electronCmd = Join-Path $ProjectRoot 'node_modules\.bin\electron.cmd'
 $controllerEntry = Join-Path $ProjectRoot 'apps\controller\main.js'
+if (-not $env:CMS_ALLOW_INSECURE_DEFAULT_TOKENS) {
+    $env:CMS_ALLOW_INSECURE_DEFAULT_TOKENS = '1'
+}
 
 if (-not (Test-Path -LiteralPath $controllerEntry)) {
     throw "Controller entry file was not found at $controllerEntry"

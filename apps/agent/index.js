@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 
 const serverUrl = process.env.CMS_SERVER_URL || 'ws://localhost:4377/ws';
 const connectionTimeoutMs = Number(process.env.CMS_CONNECTION_TIMEOUT_MS || 15_000);
-const token = process.env.CMS_ENROLLMENT_TOKEN || 'change-this-enrollment-token';
+const token = readRequiredSecret('CMS_ENROLLMENT_TOKEN', 'change-this-enrollment-token');
 const deviceName = process.env.CMS_DEVICE_NAME || os.hostname();
 const deviceId = process.env.CMS_DEVICE_ID;
 const allowScreenView = ['1', 'true', 'yes'].includes(String(process.env.CMS_ALLOW_SCREEN_VIEW || '').toLowerCase());
@@ -38,6 +38,24 @@ let screenStreamTimer;
 let screenStreamIntervalMs = 1000;
 
 connect();
+
+function readRequiredSecret(name, insecureDefault) {
+  const value = process.env[name];
+  if (value && value !== insecureDefault) {
+    return value;
+  }
+
+  if (isEnabled(process.env.CMS_ALLOW_INSECURE_DEFAULT_TOKENS)) {
+    return insecureDefault;
+  }
+
+  console.error(`${name} must be set to a non-default value. Set CMS_ALLOW_INSECURE_DEFAULT_TOKENS=1 only for local demos.`);
+  process.exit(1);
+}
+
+function isEnabled(value) {
+  return ['1', 'true', 'yes'].includes(String(value || '').toLowerCase());
+}
 
 function connect() {
   try {

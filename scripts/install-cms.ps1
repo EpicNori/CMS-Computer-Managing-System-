@@ -2,6 +2,7 @@ param(
     [ValidateSet('Controller', 'AgentVisible', 'AgentBackground')]
     [string]$Mode = 'Controller',
     [string]$ServerUrl = 'ws://localhost:4377/ws',
+    [string]$AdminToken = $env:CMS_ADMIN_TOKEN,
     [string]$EnrollmentToken = 'change-this-enrollment-token',
     [string]$DeviceName = $env:COMPUTERNAME,
     [switch]$InstallGlobal,
@@ -9,6 +10,7 @@ param(
     [string]$InstallDir,
     [string]$RepoZipUrl = 'https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip',
     [string]$RepoZipFallbackUrl = 'https://codeload.github.com/EpicNori/CMS-Computer-Managing-System-/zip/refs/heads/main',
+    [switch]$AllowInsecureDefaultTokens,
     [switch]$SkipDependencyInstall
 )
 
@@ -185,6 +187,52 @@ function Ensure-NpmDependencies {
     }
 }
 
+function Assert-NonDefaultSecret {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [string]$Value,
+        [Parameter(Mandatory = $true)]
+        [string]$DefaultValue
+    )
+
+    if ($Value -and ($Value -ne $DefaultValue)) {
+        return
+    }
+
+    if ($AllowInsecureDefaultTokens) {
+        return
+    }
+
+    Fail "$Name must be set to a non-default value. Pass -$Name or set $Name in the environment. Use -AllowInsecureDefaultTokens only for local demos."
+}
+
+function Save-ProjectEnvironment {
+    param([string]$ProjectRoot)
+
+    $envPath = Join-Path $ProjectRoot '.env'
+    $values = [ordered]@{
+        CMS_SERVER_URL = $ServerUrl
+        CMS_ALLOW_INSECURE_DEFAULT_TOKENS = $(if ($AllowInsecureDefaultTokens) { '1' } else { '0' })
+    }
+
+    if ($Mode -eq 'Controller') {
+        Assert-NonDefaultSecret -Name 'AdminToken' -Value $AdminToken -DefaultValue 'change-this-admin-token'
+        $values.CMS_ADMIN_TOKEN = $AdminToken
+    } else {
+        Assert-NonDefaultSecret -Name 'EnrollmentToken' -Value $EnrollmentToken -DefaultValue 'change-this-enrollment-token'
+        $values.CMS_ENROLLMENT_TOKEN = $EnrollmentToken
+        $values.CMS_DEVICE_NAME = $DeviceName
+    }
+
+    $lines = foreach ($entry in $values.GetEnumerator()) {
+        "$($entry.Key)=$($entry.Value)"
+    }
+
+    Set-Content -LiteralPath $envPath -Value $lines -Encoding ASCII
+    Write-Step "Wrote runtime configuration to $envPath"
+}
+
 function Install-ControllerShortcut {
     param([string]$ProjectRoot)
 
@@ -220,28 +268,41 @@ function Start-Controller {
 function Invoke-AgentBootstrap {
     param([string]$ProjectRoot)
 
-    $batName = if ($Mode -eq 'AgentBackground') { 'enroll-agent-background.bat' } else { 'enroll-agent.bat' }
-    $batPath = Join-Path $ProjectRoot "scripts\$batName"
-    if (-not (Test-Path -LiteralPath $batPath)) {
-        Fail "Agent bootstrap BAT was not found at $batPath"
+    $runnerPath = Join-Path $ProjectRoot 'scripts\run-agent.ps1'
+    if (-not (Test-Path -LiteralPath $runnerPath)) {
+        Fail "Agent runner was not found at $runnerPath"
     }
 
-    $arguments = New-Object System.Collections.Generic.List[string]
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', $runnerPath,
+        '-Mode', $(if ($Mode -eq 'AgentBackground') { 'Background' } else { 'Visible' }),
+        '-ProjectRoot', $ProjectRoot,
+        '-ServerUrl', $ServerUrl,
+        '-EnrollmentToken', $EnrollmentToken,
+        '-DeviceName', $DeviceName
+    )
     if ($InstallGlobal) {
-        if ($DisplayMode) {
-            $arguments.Add('--install-display')
-        } else {
-            $arguments.Add('--install-global')
-        }
+        $arguments += '-InstallGlobal'
     }
-    $arguments.Add($ServerUrl)
-    $arguments.Add($EnrollmentToken)
-    $arguments.Add($DeviceName)
+    if ($DisplayMode) {
+        $arguments += '-DisplayMode'
+    }
+    if ($SkipDependencyInstall) {
+        $arguments += '-SkipDependencyInstall'
+    }
 
-    Write-Step "Starting agent bootstrap via $batName ..."
-    $process = Start-Process -FilePath $batPath -ArgumentList $arguments -WorkingDirectory $ProjectRoot -Wait -PassThru
-    if ($process.ExitCode -ne 0) {
-        Fail "$batName exited with code $($process.ExitCode)."
+    Write-Step 'Starting agent runner...'
+    Push-Location $ProjectRoot
+    try {
+        & powershell.exe @arguments
+    } finally {
+        Pop-Location
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        Fail "Agent runner exited with code $LASTEXITCODE."
     }
 }
 
@@ -252,6 +313,7 @@ Write-Step "Install directory: $targetRoot"
 
 Ensure-Node
 Stage-Project -TargetRoot $targetRoot
+Save-ProjectEnvironment -ProjectRoot $targetRoot
 Ensure-NpmDependencies -ProjectRoot $targetRoot
 
 switch ($Mode) {

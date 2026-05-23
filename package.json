@@ -6,15 +6,15 @@
   "type": "module",
   "main": "apps/controller/main.js",
   "scripts": {
-    "dev:server": "node apps/server/index.js",
-    "dev:agent": "node apps/agent/index.js",
-    "dev:controller": "electron apps/controller/main.js",
+    "dev:server": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\dev-server.ps1",
+    "dev:agent": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\dev-agent.ps1",
+    "dev:controller": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-controller.ps1",
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:controller\"",
     "install:controller": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\install-cms.ps1 -Mode Controller",
     "install:agent-visible": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\install-cms.ps1 -Mode AgentVisible",
     "install:agent-background": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\install-cms.ps1 -Mode AgentBackground",
     "run:controller": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\run-controller.ps1",
-    "check": "node --check apps/server/index.js && node --check apps/agent/index.js && node --check apps/controller/main.js && node --check apps/controller/renderer/renderer.js && node --check tests/integration.test.js",
+    "check": "node --check apps/server/index.js && node --check apps/agent/index.js && node --check apps/controller/main.js && node --check apps/controller/renderer/renderer.js && node --check tests/integration.test.js && powershell -NoProfile -ExecutionPolicy Bypass -Command \"$files=@('scripts/install-cms.ps1','scripts/run-controller.ps1','scripts/run-agent.ps1','scripts/dev-server.ps1','scripts/dev-agent.ps1'); foreach ($file in $files) { $tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) > $null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error \\\"${file}: $($_.Message)\\\" }; exit 1 } }\"",
     "test": "node --test tests/integration.test.js"
   },
   "dependencies": {

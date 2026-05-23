@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,7 @@ import WebSocket from 'ws';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serverUrl = process.env.CMS_SERVER_URL || 'ws://localhost:4377/ws';
 const connectionTimeoutMs = Number(process.env.CMS_CONNECTION_TIMEOUT_MS || 15_000);
-const adminToken = process.env.CMS_ADMIN_TOKEN || 'change-this-admin-token';
+const adminToken = readRequiredSecret('CMS_ADMIN_TOKEN', 'change-this-admin-token');
 
 let window;
 let socket;
@@ -89,6 +90,23 @@ function connect() {
   socket.on('error', (error) => {
     emit('connection', { status: 'error', serverUrl, message: error.message });
   });
+}
+
+function readRequiredSecret(name, insecureDefault) {
+  const value = process.env[name];
+  if (value && value !== insecureDefault) {
+    return value;
+  }
+
+  if (isEnabled(process.env.CMS_ALLOW_INSECURE_DEFAULT_TOKENS)) {
+    return insecureDefault;
+  }
+
+  throw new Error(`${name} must be set to a non-default value. Set CMS_ALLOW_INSECURE_DEFAULT_TOKENS=1 only for local demos.`);
+}
+
+function isEnabled(value) {
+  return ['1', 'true', 'yes'].includes(String(value || '').toLowerCase());
 }
 
 function send(message) {

@@ -12,8 +12,8 @@ const configuredCommandTimeoutMs = Number(process.env.CMS_COMMAND_TIMEOUT_MS || 
 const commandTimeoutMs = Number.isFinite(configuredCommandTimeoutMs) && configuredCommandTimeoutMs > 0
   ? configuredCommandTimeoutMs
   : 90_000;
-const adminToken = process.env.CMS_ADMIN_TOKEN || 'change-this-admin-token';
-const enrollmentToken = process.env.CMS_ENROLLMENT_TOKEN || 'change-this-enrollment-token';
+const adminToken = readRequiredSecret('CMS_ADMIN_TOKEN', 'change-this-admin-token');
+const enrollmentToken = readRequiredSecret('CMS_ENROLLMENT_TOKEN', 'change-this-enrollment-token');
 
 const app = express();
 const server = http.createServer(app);
@@ -106,6 +106,24 @@ server.listen(port, host, () => {
     console.log(`  ${url.http}  (${url.ws})`);
   }
 });
+
+function readRequiredSecret(name, insecureDefault) {
+  const value = process.env[name];
+  if (value && value !== insecureDefault) {
+    return value;
+  }
+
+  if (isEnabled(process.env.CMS_ALLOW_INSECURE_DEFAULT_TOKENS)) {
+    return insecureDefault;
+  }
+
+  console.error(`${name} must be set to a non-default value. Set CMS_ALLOW_INSECURE_DEFAULT_TOKENS=1 only for local demos.`);
+  process.exit(1);
+}
+
+function isEnabled(value) {
+  return ['1', 'true', 'yes'].includes(String(value || '').toLowerCase());
+}
 
 function routeMessage(socket, message) {
   if (!socket.role) {

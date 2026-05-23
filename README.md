@@ -30,6 +30,7 @@ Diese Grenzen sind Absicht: Das Tool soll fuer eigene Server und autorisierte Ge
 ```powershell
 npm install
 Copy-Item .env.example .env
+# Editiere CMS_ADMIN_TOKEN und CMS_ENROLLMENT_TOKEN in .env.
 npm run dev
 ```
 
@@ -69,15 +70,15 @@ Fuer einen stillen Hintergrundstart gibt es zusaetzlich:
 scripts\enroll-agent-background.bat wss://deine-domain.example/ws change-this-enrollment-token "Display 01"
 ```
 
-Die BAT funktioniert auch allein, wenn der Rest des Repos nicht daneben liegt. In diesem Fall installiert sie bei Bedarf Node.js LTS ueber `winget`, laedt die Projektdateien sichtbar von GitHub nach `%LOCALAPPDATA%\CMS-Computer-Managing-System`, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
-Die wichtigsten Standardwerte stehen ganz oben in der BAT im `CONFIG`-Block und koennen dort direkt angepasst werden.
+Die BATs sind nur noch kleine Wrapper um `scripts\run-agent.ps1`. Fuer Bootstrap/Download auf einem frischen Zielgeraet nutze `scripts\install-cms.ps1`; dieser Installer installiert bei Bedarf Node.js LTS ueber `winget`, kopiert oder laedt die Projektdateien, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
+Die wichtigsten Standardwerte koennen als Parameter oder Umgebungsvariablen gesetzt werden.
 
 Optional koennen Downloadquelle und Zielordner vorher gesetzt werden:
 
 ```powershell
 $env:CMS_REPO_ZIP_URL="https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
 $env:CMS_INSTALL_DIR="$env:LOCALAPPDATA\CMS-Computer-Managing-System"
-scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-enrollment-token "Office PC"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode AgentVisible -ServerUrl wss://deine-domain.example/ws -EnrollmentToken change-this-enrollment-token -DeviceName "Office PC"
 ```
 
 Fuer eine machine-weite Installation kann die BAT als Administrator mit `--install-global` gestartet werden:
@@ -98,6 +99,14 @@ Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon versteckt
 
 Im globalen oder Display-Modus installiert die BAT Node.js LTS per `winget --scope machine`, wenn Node/npm fehlen. Dafuer ist ein Administrator-Terminal noetig.
 Wenn `--install-global` oder `--install-display` aus einem temporaeren Ordner gestartet wird, kopiert die BAT die Projektdateien zuerst nach `%ProgramData%\CMS-Computer-Managing-System`, damit der geplante Task spaeter nicht von diesem temporaeren Pfad abhaengt.
+
+Der Controller braucht seit dem Security-Hardening ebenfalls einen expliziten Admin-Token. Beim Installieren kann er direkt uebergeben werden:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode Controller -ServerUrl ws://localhost:4377/ws -AdminToken dein-langer-admin-token
+```
+
+Der Installer schreibt die Runtime-Werte in `.env` im Installationsordner. Fuer lokale Demos mit den Beispiel-Tokens kann `-AllowInsecureDefaultTokens` genutzt werden; fuer echte Geraete sollte das nicht verwendet werden.
 
 Optional kann der Server fuer Statusausgaben eine feste externe Adresse anzeigen:
 
@@ -136,11 +145,17 @@ $env:CMS_ALLOW_SHELL="1"
 npm run dev:agent
 ```
 
-## Windows Enrollment per BAT
+## Windows Enrollment
 
-Passe in `scripts\enroll-agent.bat` oder `scripts\enroll-agent-background.bat` die Werte `CMS_SERVER_URL`, `CMS_ENROLLMENT_TOKEN` und `CMS_DEVICE_NAME` an und fuehre die passende Datei auf dem Zielgeraet aus.
+Starte `scripts\install-cms.ps1` fuer Installation/Bootstrap oder nutze `scripts\enroll-agent.bat` und `scripts\enroll-agent-background.bat`, wenn das Projekt bereits vollstaendig auf dem Zielgeraet liegt.
 
 Im Controller kann ueber `BAT Autostart` ein minimierter Shortcut zu `scripts\enroll-agent-background.bat` im Windows-Autostart-Ordner des angemeldeten Users angelegt werden.
+
+## Flipper Zero Enrollment
+
+Fuer autorisierte Windows-Geraete gibt es eine sichtbare BadUSB-Vorlage unter `scripts\flipper-agent-visible.txt`. Die Vorlage nutzt fuer lokale Demos standardmaessig `ws://localhost:4377/ws`, `change-this-enrollment-token` und `-AllowInsecureDefaultTokens`. Fuer echte Geraete muessen `SERVER_URL`, `ENROLLMENT_TOKEN` und optional `DEVICE_NAME` angepasst werden; entferne dann auch `-AllowInsecureDefaultTokens`. Die Vorlage oeffnet sichtbar PowerShell, zeigt eine kurze Warnung, wartet 5 Sekunden, laedt `install-cms.ps1` von diesem Repository und startet den sichtbaren Agent autonom. Das ist fuer autorisierte Displays ohne Tastatur/Maus gedacht.
+
+Die Vorlage ist absichtlich nicht stealthy: kein UAC-Bypass, kein versteckter Start und keine Persistenz. Fuer globale Installation oder Display-/Hintergrundmodus nutze weiterhin `install-cms.ps1` manuell in einem Administrator-Terminal.
 
 ## Erlaubte Commands
 
