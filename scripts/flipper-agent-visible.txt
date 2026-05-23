@@ -7,7 +7,7 @@ REM If typed output is garbled, set the Flipper BadUSB keyboard layout to the
 REM target PC layout and increase DEFAULT_DELAY below.
 
 ID 1234:5678 Flipper CMS Agent
-DEFAULT_DELAY 120
+DEFAULT_DELAY 220
 DELAY 1000
 GUI r
 DELAY 700
@@ -43,6 +43,22 @@ ENTER
 STRING Write-Host 'Use only on devices you own or are allowed to manage.' -ForegroundColor Yellow
 ENTER
 STRING Start-Sleep -Seconds 5
+ENTER
+STRING $SERVER_URI=[Uri]$SERVER_URL
+ENTER
+STRING $SERVER_HOST=$SERVER_URI.Host
+ENTER
+STRING if ($SERVER_HOST -eq 'localhost') { Write-Host 'SERVER_URL localhost means this target PC.' -ForegroundColor Yellow }
+ENTER
+STRING $SERVER_PORT=$SERVER_URI.Port
+ENTER
+STRING if ($SERVER_PORT -lt 1) { $SERVER_PORT=80 }
+ENTER
+STRING if ($SERVER_URI.Scheme -eq 'wss') { if ($SERVER_URI.Port -lt 1) { $SERVER_PORT=443 } }
+ENTER
+STRING $CMS_REACHABLE=Test-NetConnection -ComputerName $SERVER_HOST -Port $SERVER_PORT -InformationLevel Quiet
+ENTER
+STRING if (-not $CMS_REACHABLE) { Write-Host "CMS coordinator is not reachable now at $SERVER_URL. Agent will still start and keep reconnecting." -ForegroundColor Yellow }
 ENTER
 STRING $downloaded=$false
 ENTER
