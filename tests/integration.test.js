@@ -4,8 +4,9 @@ import net from 'node:net';
 import { test } from 'node:test';
 import WebSocket from 'ws';
 
-const adminToken = 'test-admin-token';
-const enrollmentToken = 'test-enrollment-token';
+const cmsToken = 'test-cms-token';
+const adminToken = cmsToken;
+const enrollmentToken = cmsToken;
 
 test('coordinator authenticates clients, routes commands, times out, and forwards screen frames', async () => {
   const port = await getFreePort();

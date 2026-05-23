@@ -18,6 +18,8 @@ STRING $CMS_FLIPPER_SCRIPT="$env:TEMP\cms-flipper-agent-visible.ps1"
 ENTER
 STRING @'
 ENTER
+STRING $LAUNCHER=$MyInvocation.MyCommand.Path
+ENTER
 STRING $SERVER_URL='ws://localhost:4377/ws'
 ENTER
 STRING $ENROLLMENT_TOKEN='change-this-cms-token'
@@ -66,7 +68,17 @@ STRING }
 ENTER
 STRING if (-not $downloaded -or -not (Test-Path -LiteralPath $INSTALLER)) { throw 'Installer was not downloaded. Publish it to GitHub Pages or another public HTTPS URL.' }
 ENTER
-STRING powershell.exe -NoProfile -ExecutionPolicy Bypass -File $INSTALLER -Mode AgentVisible -ServerUrl $SERVER_URL -EnrollmentToken $ENROLLMENT_TOKEN -DeviceName $DEVICE_NAME -AllowInsecureDefaultTokens
+STRING try {
+ENTER
+STRING     powershell.exe -NoProfile -ExecutionPolicy Bypass -File $INSTALLER -Mode AgentVisible -ServerUrl $SERVER_URL -EnrollmentToken $ENROLLMENT_TOKEN -DeviceName $DEVICE_NAME -AllowInsecureDefaultTokens
+ENTER
+STRING } finally {
+ENTER
+STRING     $cleanup="Start-Sleep -Seconds 2; Remove-Item -LiteralPath '$($INSTALLER.Replace('''',''''''))' -Force -ErrorAction SilentlyContinue; Remove-Item -LiteralPath '$($LAUNCHER.Replace('''',''''''))' -Force -ErrorAction SilentlyContinue"
+ENTER
+STRING     Start-Process -WindowStyle Hidden -FilePath powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command',$cleanup)
+ENTER
+STRING }
 ENTER
 STRING '@ | Set-Content -LiteralPath $CMS_FLIPPER_SCRIPT -Encoding ASCII
 ENTER

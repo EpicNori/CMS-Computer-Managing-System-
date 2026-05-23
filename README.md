@@ -61,13 +61,13 @@ Damit ein PC aus einem anderen Internet/anderen Standort verbindet, muss der Coo
 Die Enrollment-BAT kann die externe Adresse direkt bekommen:
 
 ```powershell
-scripts\enroll-agent.bat wss://deine-domain.example/ws change-this-cms-token "Office PC"
+scripts\enroll-agent.bat wss://deine-domain.example/ws dein-langer-cms-token "Office PC"
 ```
 
 Fuer einen stillen Hintergrundstart gibt es zusaetzlich:
 
 ```powershell
-scripts\enroll-agent-background.bat wss://deine-domain.example/ws change-this-cms-token "Display 01"
+scripts\enroll-agent-background.bat wss://deine-domain.example/ws dein-langer-cms-token "Display 01"
 ```
 
 Die BATs sind nur noch kleine Wrapper um `scripts\run-agent.ps1`. Fuer Bootstrap/Download auf einem frischen Zielgeraet nutze `scripts\install-cms.ps1`; dieser Installer installiert bei Bedarf Node.js LTS ueber `winget`, kopiert oder laedt die Projektdateien, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
@@ -80,13 +80,13 @@ Optional koennen Downloadquelle und Zielordner vorher gesetzt werden:
 ```powershell
 $env:CMS_REPO_ZIP_URL="https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip"
 $env:CMS_INSTALL_DIR="$env:LOCALAPPDATA\CMS-Computer-Managing-System"
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode AgentVisible -ServerUrl wss://deine-domain.example/ws -EnrollmentToken change-this-cms-token -DeviceName "Office PC"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-cms.ps1 -Mode AgentVisible -ServerUrl wss://deine-domain.example/ws -EnrollmentToken dein-langer-cms-token -DeviceName "Office PC"
 ```
 
 Fuer eine machine-weite Installation kann die BAT als Administrator mit `--install-global` gestartet werden:
 
 ```powershell
-scripts\enroll-agent.bat --install-global wss://deine-domain.example/ws change-this-cms-token "Office PC"
+scripts\enroll-agent.bat --install-global wss://deine-domain.example/ws dein-langer-cms-token "Office PC"
 ```
 
 Das legt einen sichtbaren geplanten Task `\CMS\CMS Visible Agent` an, der den Agent fuer jeden angemeldeten User startet. Das ist absichtlich kein klassischer Windows-Service: Services laufen in Session 0 und koennen den sichtbaren Desktop normalerweise nicht fuer Screen/Input erreichen.
@@ -94,7 +94,7 @@ Das legt einen sichtbaren geplanten Task `\CMS\CMS Visible Agent` an, der den Ag
 Fuer 24/7-Display-PCs gibt es zusaetzlich einen Display-Modus:
 
 ```powershell
-scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws change-this-cms-token "Display 01"
+scripts\enroll-agent.bat --install-display wss://deine-domain.example/ws dein-langer-cms-token "Display 01"
 ```
 
 Das legt `\CMS\CMS Display Agent` an, startet den Agent bei User-Logon versteckt im Hintergrund und haelt den Task wartend, damit Windows ihn bei einem Exit erneut starten kann. Logs landen standardmaessig in `%ProgramData%\CMS-Computer-Managing-System\logs\agent.log`. Der Modus ist fuer autorisierte Anzeige-/Kiosk-PCs gedacht.
