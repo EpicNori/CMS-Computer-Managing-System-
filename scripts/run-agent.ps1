@@ -7,6 +7,7 @@ param(
     [string]$ProjectRoot,
     [string]$InstallDir,
     [string]$LogDir,
+    [string]$RawBaseUrl = 'https://raw.githubusercontent.com/EpicNori/CMS-Computer-Managing-System-/main',
     [switch]$InstallGlobal,
     [switch]$DisplayMode,
     [switch]$SkipDependencyInstall
@@ -108,7 +109,11 @@ function Copy-ProjectTree {
         ForEach-Object {
             $destination = Join-Path $resolvedTarget $_.Name
             if (Test-Path -LiteralPath $destination) {
-                Remove-Item -LiteralPath $destination -Recurse -Force
+                try {
+                    Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction Stop
+                } catch {
+                    Write-Step "Could not remove existing '$destination'. It may be in use; overwriting available files."
+                }
             }
             Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
         }
@@ -144,6 +149,84 @@ function Ensure-Dependencies {
     } finally {
         Pop-Location
     }
+}
+
+function Download-PublicFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+        [Parameter(Mandatory = $true)]
+        [string]$Target
+    )
+
+    $targetDir = Split-Path -Parent $Target
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    Write-Step "Downloading $Url ..."
+    Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing
+}
+
+function Write-AgentLitePackage {
+    param([string]$Root)
+
+    $packagePath = Join-Path $Root 'package.json'
+    @'
+{
+  "name": "cms-agent-lite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ws": "^8.18.0"
+  }
+}
+'@ | Set-Content -LiteralPath $packagePath -Encoding ASCII
+}
+
+function Remove-AgentLiteExtras {
+    param([string]$Root)
+
+    $relativePaths = @(
+        'apps\controller',
+        'apps\server',
+        'scripts\dev-agent.ps1',
+        'scripts\dev-server.ps1',
+        'scripts\install-controller.bat',
+        'scripts\run-controller.bat',
+        'scripts\run-controller.ps1',
+        'tests',
+        'package-lock.json'
+    )
+
+    foreach ($relativePath in $relativePaths) {
+        $path = Join-Path $Root $relativePath
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        try {
+            Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Step "Could not remove unused agent-lite path '$path'. It may be in use."
+        }
+    }
+}
+
+function Ensure-AgentLiteFiles {
+    param([string]$Root)
+
+    $agentEntry = Join-Path $Root 'apps\agent\index.js'
+    if (Test-Path -LiteralPath $agentEntry) {
+        return
+    }
+
+    Write-Step "Agent files were not found. Installing lightweight agent files into '$Root'..."
+    New-Item -ItemType Directory -Path $Root -Force | Out-Null
+    Download-PublicFile -Url "$RawBaseUrl/apps/agent/index.js" -Target $agentEntry
+    Download-PublicFile -Url "$RawBaseUrl/scripts/run-agent.ps1" -Target (Join-Path $Root 'scripts\run-agent.ps1')
+    Download-PublicFile -Url "$RawBaseUrl/scripts/enroll-agent-background.bat" -Target (Join-Path $Root 'scripts\enroll-agent-background.bat')
+    Write-AgentLitePackage -Root $Root
+    Remove-AgentLiteExtras -Root $Root
 }
 
 function New-QuotedArgument {
@@ -209,9 +292,10 @@ function Install-GlobalTask {
 }
 
 $resolvedProjectRoot = Ensure-StableInstall -Root (Resolve-ProjectRoot)
+Ensure-AgentLiteFiles -Root $resolvedProjectRoot
 $agentEntry = Join-Path $resolvedProjectRoot 'apps\agent\index.js'
 if (-not (Test-Path -LiteralPath $agentEntry)) {
-    throw "Agent entry file was not found at $agentEntry. Run install-cms.ps1 first or place this script inside the full project."
+    throw "Agent entry file was not found at $agentEntry."
 }
 
 $resolvedLogDir = if ($LogDir) {

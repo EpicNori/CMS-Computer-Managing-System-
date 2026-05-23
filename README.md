@@ -71,6 +71,8 @@ scripts\enroll-agent-background.bat wss://deine-domain.example/ws change-this-cm
 ```
 
 Die BATs sind nur noch kleine Wrapper um `scripts\run-agent.ps1`. Fuer Bootstrap/Download auf einem frischen Zielgeraet nutze `scripts\install-cms.ps1`; dieser Installer installiert bei Bedarf Node.js LTS ueber `winget`, kopiert oder laedt die Projektdateien, fuehrt `npm install` aus und startet danach den Agent. Falls `winget` auf dem System fehlt, muss Node.js LTS einmal manuell installiert werden.
+
+Wenn `scripts\enroll-agent.bat`, `scripts\enroll-agent-background.bat`, `scripts\run-agent.ps1` oder `scripts\install-cms.ps1` fuer einen Agent alleine ohne restliches Projekt gestartet werden, legen sie eine schlanke Agent-Installation an. Dabei werden nur `apps\agent\index.js`, `scripts\run-agent.ps1`, `scripts\enroll-agent-background.bat` und ein minimales `package.json` mit den Agent-Abhaengigkeiten gespeichert. Controller, Server, Tests und Electron werden nicht heruntergeladen.
 Die wichtigsten Standardwerte koennen als Parameter oder Umgebungsvariablen gesetzt werden.
 
 Optional koennen Downloadquelle und Zielordner vorher gesetzt werden:

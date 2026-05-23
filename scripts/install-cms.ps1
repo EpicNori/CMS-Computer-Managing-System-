@@ -10,6 +10,7 @@ param(
     [string]$InstallDir,
     [string]$RepoZipUrl = 'https://github.com/EpicNori/CMS-Computer-Managing-System-/archive/refs/heads/main.zip',
     [string]$RepoZipFallbackUrl = 'https://codeload.github.com/EpicNori/CMS-Computer-Managing-System-/zip/refs/heads/main',
+    [string]$RawBaseUrl = 'https://raw.githubusercontent.com/EpicNori/CMS-Computer-Managing-System-/main',
     [switch]$AllowInsecureDefaultTokens,
     [switch]$SkipDependencyInstall
 )
@@ -73,16 +74,21 @@ function Copy-ProjectTree {
         return
     }
 
-    if (Test-Path -LiteralPath $resolvedTarget) {
-        Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
-    }
     New-Item -ItemType Directory -Path $resolvedTarget -Force | Out-Null
 
-    $exclude = @('.git', 'node_modules', '.env')
+    $exclude = @('.git', 'node_modules', '.env', 'logs')
     Get-ChildItem -LiteralPath $resolvedSource -Force |
         Where-Object { $exclude -notcontains $_.Name } |
         ForEach-Object {
-            Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $resolvedTarget $_.Name) -Recurse -Force
+            $destination = Join-Path $resolvedTarget $_.Name
+            if (Test-Path -LiteralPath $destination) {
+                try {
+                    Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction Stop
+                } catch {
+                    Write-Step "Could not remove existing '$destination'. It may be in use; overwriting available files."
+                }
+            }
+            Copy-Item -LiteralPath $_.FullName -Destination $destination -Recurse -Force
         }
 }
 
@@ -131,6 +137,79 @@ function Download-ProjectTree {
     }
 }
 
+function Download-PublicFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+        [Parameter(Mandatory = $true)]
+        [string]$Target
+    )
+
+    $targetDir = Split-Path -Parent $Target
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    Write-Step "Downloading $Url ..."
+    Invoke-WebRequest -Uri $Url -OutFile $Target -UseBasicParsing
+}
+
+function Write-AgentLitePackage {
+    param([string]$ProjectRoot)
+
+    $packagePath = Join-Path $ProjectRoot 'package.json'
+    @'
+{
+  "name": "cms-agent-lite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ws": "^8.18.0"
+  }
+}
+'@ | Set-Content -LiteralPath $packagePath -Encoding ASCII
+}
+
+function Remove-AgentLiteExtras {
+    param([string]$ProjectRoot)
+
+    $relativePaths = @(
+        'apps\controller',
+        'apps\server',
+        'scripts\dev-agent.ps1',
+        'scripts\dev-server.ps1',
+        'scripts\install-controller.bat',
+        'scripts\run-controller.bat',
+        'scripts\run-controller.ps1',
+        'tests',
+        'package-lock.json'
+    )
+
+    foreach ($relativePath in $relativePaths) {
+        $path = Join-Path $ProjectRoot $relativePath
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        try {
+            Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Step "Could not remove unused agent-lite path '$path'. It may be in use."
+        }
+    }
+}
+
+function Stage-AgentLite {
+    param([string]$TargetRoot)
+
+    Write-Step "Installing lightweight agent files into $TargetRoot ..."
+    New-Item -ItemType Directory -Path $TargetRoot -Force | Out-Null
+    Download-PublicFile -Url "$RawBaseUrl/apps/agent/index.js" -Target (Join-Path $TargetRoot 'apps\agent\index.js')
+    Download-PublicFile -Url "$RawBaseUrl/scripts/run-agent.ps1" -Target (Join-Path $TargetRoot 'scripts\run-agent.ps1')
+    Download-PublicFile -Url "$RawBaseUrl/scripts/enroll-agent-background.bat" -Target (Join-Path $TargetRoot 'scripts\enroll-agent-background.bat')
+    Write-AgentLitePackage -ProjectRoot $TargetRoot
+    Remove-AgentLiteExtras -ProjectRoot $TargetRoot
+}
+
 function Resolve-InstallRoot {
     param([string]$RequestedPath)
 
@@ -154,10 +233,16 @@ function Stage-Project {
 
     $localRepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
     $hasLocalProject = (Test-Path -LiteralPath (Join-Path $localRepoRoot 'package.json')) -and (Test-Path -LiteralPath (Join-Path $localRepoRoot 'apps'))
+    $isAgentMode = $Mode -eq 'AgentVisible' -or $Mode -eq 'AgentBackground'
 
     if ($hasLocalProject) {
         Write-Step "Copying local project files into $TargetRoot ..."
         Copy-ProjectTree -Source $localRepoRoot -Target $TargetRoot
+        return
+    }
+
+    if ($isAgentMode) {
+        Stage-AgentLite -TargetRoot $TargetRoot
         return
     }
 
@@ -171,14 +256,10 @@ function Ensure-NpmDependencies {
         return
     }
 
-    if (Test-Path -LiteralPath (Join-Path $ProjectRoot 'node_modules')) {
-        return
-    }
-
     Write-Step 'Installing npm dependencies...'
     Push-Location $ProjectRoot
     try {
-        & npm install
+        & npm install --omit=dev
         if ($LASTEXITCODE -ne 0) {
             Fail 'npm install failed.'
         }
