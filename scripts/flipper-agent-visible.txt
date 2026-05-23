@@ -23,6 +23,14 @@ STRING $DEVICE_NAME="$env:COMPUTERNAME"
 ENTER
 STRING $INSTALLER="$env:TEMP\cms-install-cms.ps1"
 ENTER
+STRING $INSTALLER_URLS=@(
+ENTER
+STRING     'https://epicnori.github.io/CMS-Computer-Managing-System-/install-cms.ps1',
+ENTER
+STRING     'https://raw.githubusercontent.com/EpicNori/CMS-Computer-Managing-System-/main/scripts/install-cms.ps1'
+ENTER
+STRING )
+ENTER
 STRING Write-Host 'CMS authorized visible agent enrollment.' -ForegroundColor Cyan
 ENTER
 STRING Write-Host 'Autonomous display provisioning starts in 5 seconds.' -ForegroundColor Yellow
@@ -31,7 +39,29 @@ STRING Write-Host 'Use only on devices you own or are allowed to manage.' -Foreg
 ENTER
 STRING Start-Sleep -Seconds 5
 ENTER
-STRING Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/EpicNori/CMS-Computer-Managing-System-/main/scripts/install-cms.ps1' -OutFile $INSTALLER -UseBasicParsing
+STRING $downloaded=$false
+ENTER
+STRING foreach ($INSTALLER_URL in $INSTALLER_URLS) {
+ENTER
+STRING     try {
+ENTER
+STRING         Write-Host "Downloading installer from $INSTALLER_URL"
+ENTER
+STRING         Invoke-WebRequest -Uri $INSTALLER_URL -OutFile $INSTALLER -UseBasicParsing
+ENTER
+STRING         $downloaded=$true
+ENTER
+STRING         break
+ENTER
+STRING     } catch {
+ENTER
+STRING         Write-Host "Anonymous download failed from $INSTALLER_URL" -ForegroundColor Yellow
+ENTER
+STRING     }
+ENTER
+STRING }
+ENTER
+STRING if (-not $downloaded -or -not (Test-Path -LiteralPath $INSTALLER)) { throw 'Installer was not downloaded. Publish it to GitHub Pages or another public HTTPS URL.' }
 ENTER
 STRING powershell.exe -NoProfile -ExecutionPolicy Bypass -File $INSTALLER -Mode AgentVisible -ServerUrl $SERVER_URL -EnrollmentToken $ENROLLMENT_TOKEN -DeviceName $DEVICE_NAME -AllowInsecureDefaultTokens
 ENTER
